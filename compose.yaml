@@ -78,6 +78,20 @@ services:
       REDIS_URL: redis://redis:6379/0
     restart: unless-stopped
 
+  store:
+    build: .
+    command: ["/app/.venv/bin/python", "-m", "gamedev_trends.store"]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
+    restart: unless-stopped
+
 volumes:
   kafka-data:
   clickhouse-data:
