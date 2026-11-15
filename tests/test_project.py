@@ -65,7 +65,9 @@ def test_gitignore_and_env_example() -> None:
     lines: set[str] = {x.strip() for x in (ROOT / ".gitignore").read_text().splitlines()}
     wanted: set[str] = {".venv/", "__pycache__/", ".env", ".mypy_cache/", ".pytest_cache/", ".ruff_cache/"}
     assert wanted <= lines
-    assert (ROOT / ".env.example").read_text().strip() == "CLICKHOUSE_PASSWORD=change-me"
+    assert (ROOT / ".env.example").read_text().strip() == (
+        "CLICKHOUSE_PASSWORD=change-me\nGRAFANA_ADMIN_PASSWORD=change-me"
+    )
 
 
 def test_readme_content() -> None:
@@ -84,9 +86,17 @@ def test_readme_content() -> None:
 def test_compose_static() -> None:
     text: str = (ROOT / "compose.yaml").read_text()
     images: set[str] = set(re.findall(r"^\s*image:\s*(\S+)", text, re.MULTILINE))
-    assert images == {"apache/kafka:4.3.2", "clickhouse/clickhouse-server:26.8.36.3", "redis:8.8.4-alpine"}
+    grafana: list[str] = [x for x in images if x.startswith("grafana/grafana:")]
+    assert len(grafana) == 1
+    assert re.fullmatch(r"grafana/grafana:\d+\.\d+\.\d+", grafana[0])
+    assert images == {
+        "apache/kafka:4.3.2",
+        "clickhouse/clickhouse-server:26.8.36.3",
+        "redis:8.8.4-alpine",
+        grafana[0],
+    }
     assert "zookeeper" not in text.lower()
     assert "KAFKA_AUTO_CREATE_TOPICS_ENABLE" in text
     ports: list[str] = re.findall(r"^\s*-\s*[\"']?(\d+(?::\d+)?)[\"']?\s*$", text, re.MULTILINE)
     assert ports == []  # every published port must carry the 127.0.0.1 prefix
-    assert text.count("127.0.0.1:") >= 4
+    assert text.count("127.0.0.1:") >= 5

@@ -2,20 +2,45 @@
 
 Trend radar for indie game developers.
 
-Status: the measurement contract, the event bus (Kafka and in-memory), the Steam collector and the
-ClickHouse storage exist. There is no API yet.
+Status: Grafana dashboards, the measurement contract, the event bus (Kafka and in-memory), the Steam
+collector and the ClickHouse storage exist. There is no API yet.
 
 ## Development
 
 ```bash
 uv sync
 cp .env.example .env
-docker compose up -d --wait   # Kafka, ClickHouse, Redis
+docker compose up -d --wait   # Kafka, ClickHouse, Redis, Grafana
 uv run pytest                 # unit tests, no Docker needed
 uv run pytest -m integration  # needs the compose stack (Kafka on localhost:9092, Redis on localhost:6379,
                               # ClickHouse on localhost:8123)
 docker compose down
 ```
+
+## Dashboards
+
+Grafana runs over ClickHouse and is configured entirely by files in `grafana/`. Open
+`http://localhost:3000`: the "Steam radar" dashboard (folder Radar) opens without a login, as an
+anonymous Viewer. The admin user is `admin`, with the password `GRAFANA_ADMIN_PASSWORD` from `.env`. An
+`.env` that already exists needs this line added (see `.env.example`).
+
+Panels:
+
+- "Players online": current players per game over the dashboard time range (default 7 days), one point
+  per hour.
+- "Chart rank": place in the Steam most-played chart over the time range. The chart is a daily summary,
+  so this is updated once a day. Place 1 is at the bottom of the axis.
+- "Chart movements": who rose, fell, entered or left the chart. It compares the latest chart with the
+  newest chart at least `period` days older.
+
+Variables: `game` picks the games for the two graphs (the latest number 1 is the default), `period`
+(1, 7 or 30 days) is how far back the movements table compares. Games are labelled by `appid`, not by
+name; in the table an appid links to the game page in Steam. The movements table is empty until there
+is a chart from `period` days before the latest one.
+
+Changing the dashboard: edits made in the UI are not saved. Export the dashboard ("Export", "Export as
+JSON"), save it as `grafana/dashboards/steam.json` with a 2-space indent, then run
+`docker compose restart grafana`.
 
 ## Steam collector
 

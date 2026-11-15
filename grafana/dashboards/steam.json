@@ -1,0 +1,225 @@
+{
+  "uid": "radar-steam",
+  "title": "Steam radar",
+  "id": null,
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "radar"
+  ],
+  "timezone": "utc",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Players online",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT observed_at AS time, entity_id AS game, value AS players\nFROM observations FINAL\nWHERE source = 'steam' AND entity_type = 'game' AND metric = 'players_current'\n  AND entity_id IN (${game:singlequote})\n  AND observed_at >= $__fromTime AND observed_at <= $__toTime\nORDER BY time, game",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Chart rank",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT observed_at AS time, entity_id AS game, toInt32(value) AS rank\nFROM observations FINAL\nWHERE source = 'steam' AND entity_type = 'game' AND metric = 'chart_rank'\n  AND entity_id IN (${game:singlequote})\n  AND observed_at >= $__fromTime AND observed_at <= $__toTime\nORDER BY time, game",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Chart movements",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No baseline yet: needs chart data from at least ${period} day(s) before the latest chart",
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "game"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open in Steam",
+                    "url": "https://store.steampowered.com/app/${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH chart AS (SELECT entity_id AS game, toDate(observed_at, 'UTC') AS d, toInt32(value) AS r\n  FROM observations FINAL\n  WHERE source = 'steam' AND entity_type = 'game' AND metric = 'chart_rank'),\n  (SELECT maxOrNull(d) FROM chart) AS cur,\n  (SELECT maxOrNull(d) FROM chart WHERE d <= cur - ${period}) AS prev\nSELECT game, rank_now, rank_then, delta, status, day_now, day_then\nFROM (\n  SELECT\n    game,\n    minIf(toNullable(r), d = cur) AS rank_now,\n    minIf(toNullable(r), d = prev) AS rank_then,\n    toInt32(rank_then - rank_now) AS delta,\n    multiIf(rank_then IS NULL, 'new', rank_now IS NULL, 'dropped', delta > 0, 'up', delta < 0, 'down', 'same') AS status,\n    assumeNotNull(cur) AS day_now,\n    assumeNotNull(prev) AS day_then\n  FROM chart\n  WHERE prev IS NOT NULL AND d IN (cur, prev)\n  GROUP BY game\n)\nORDER BY\n  indexOf(['new', 'up', 'down', 'dropped', 'same'], status),\n  abs(coalesce(delta, 0)) DESC,\n  coalesce(rank_now, rank_then) ASC,\n  game ASC",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "game",
+        "type": "query",
+        "label": "Game",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT game\nFROM (SELECT entity_id AS game, toDate(observed_at, 'UTC') AS d, toInt32(value) AS r\n  FROM observations FINAL\n  WHERE source = 'steam' AND entity_type = 'game' AND metric = 'chart_rank')\nGROUP BY game\nORDER BY max(d) DESC, argMax(r, d) ASC, game ASC",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 1,
+        "sort": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "period",
+        "type": "custom",
+        "label": "Compare with (days)",
+        "query": "1,7,30",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "1",
+          "value": "1"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "1",
+            "value": "1"
+          },
+          {
+            "selected": false,
+            "text": "7",
+            "value": "7"
+          },
+          {
+            "selected": false,
+            "text": "30",
+            "value": "30"
+          }
+        ]
+      }
+    ]
+  }
+}
