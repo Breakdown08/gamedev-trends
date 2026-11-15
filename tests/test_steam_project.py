@@ -78,7 +78,7 @@ def test_44_compose_has_steam_collector_without_image_or_ports() -> None:
     assert "build: ." in block
     assert "KAFKA_BOOTSTRAP_SERVERS: kafka:29092" in block
     assert "REDIS_URL: redis://redis:6379/0" in block
-    assert "restart: unless-stopped" in block
+    assert 'restart: "no"' in block
     assert "service_completed_successfully" in block
     assert "service_healthy" in block
     assert "image:" not in block
