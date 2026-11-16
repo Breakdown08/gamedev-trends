@@ -173,6 +173,12 @@ An invalid value makes the process exit with code 2.
 Redis memory: the post index has no expiry. An estimate, not measured: 4 to 5 thousand tagged posts a
 day, about 200 MB a year.
 
+### Measured
+
+- 2026-11-16, 08:48–08:58 UTC, from the host, default tags: `bluesky summary` gave 121 947 events in
+  605 s (201.6/s), 7 tagged posts, 13 likes and reposts of tracked posts, 0 erasures. ClickHouse has 10
+  consecutive `stream events` windows for that run, 195 to 209 events/s each.
+
 ## Storage
 
 The `store` service reads `radar.observations.v1` and `radar.erasures.v1`, collects events into batches (up to 5 000 events or
