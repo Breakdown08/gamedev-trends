@@ -9,19 +9,19 @@ from typing import Annotated, Protocol
 
 from pydantic import Field, TypeAdapter
 
-from gamedev_trends.contract import Erasure, Event, Observation
+from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
 
 OBSERVATIONS_TOPIC: str = "radar.observations.v1"
 ERASURES_TOPIC: str = "radar.erasures.v1"
 
 logger: logging.Logger = logging.getLogger(__name__)
-_EVENT_ADAPTER: TypeAdapter[Observation | Erasure] = TypeAdapter(
-    Annotated[Observation | Erasure, Field(discriminator="kind")]
+_EVENT_ADAPTER: TypeAdapter[Observation | Erasure | Excerpt] = TypeAdapter(
+    Annotated[Observation | Erasure | Excerpt, Field(discriminator="kind")]
 )
 
 
 def topic_for(event: Event) -> str:
-    return OBSERVATIONS_TOPIC if isinstance(event, Observation) else ERASURES_TOPIC
+    return ERASURES_TOPIC if isinstance(event, Erasure) else OBSERVATIONS_TOPIC
 
 
 def partition_key(event: Event) -> bytes:

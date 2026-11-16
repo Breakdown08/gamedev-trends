@@ -116,7 +116,45 @@ class Erasure(BaseModel):
         )
 
 
-type Event = Observation | Erasure
+EXCERPT_MAX_LENGTH: int = 140
+
+type ExcerptText = Annotated[str, StringConstraints(min_length=1, max_length=EXCERPT_MAX_LENGTH)]
+
+
+class Excerpt(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, extra="ignore")
+
+    kind: Literal["excerpt"] = "excerpt"
+    event_id: uuid.UUID
+    source: Name
+    entity_type: Name
+    entity_id: EntityId
+    text: ExcerptText
+    posted_at: UtcDatetime
+
+    @model_validator(mode="after")
+    def _check_text(self) -> Self:
+        try:
+            self.text.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("text must be encodable as UTF-8") from exc
+        return self
+
+    @classmethod
+    def create(
+        cls, *, source: str, entity_type: str, entity_id: str, text: str, posted_at: datetime
+    ) -> Excerpt:
+        return cls(
+            event_id=make_event_id("excerpt", source, entity_type, entity_id),
+            source=source,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            text=text,
+            posted_at=posted_at,
+        )
+
+
+type Event = Observation | Erasure | Excerpt
 
 
 def erases(erasure: Erasure, observation: Observation) -> bool:

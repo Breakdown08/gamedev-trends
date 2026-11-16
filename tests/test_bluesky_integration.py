@@ -30,14 +30,16 @@ from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC
 from gamedev_trends.clickhouse import (
     ClickHouseClient,
     ClickHouseErasureSink,
+    ClickHouseExcerptSink,
     ClickHouseSink,
     ensure_erasures_schema,
+    ensure_excerpts_schema,
     ensure_schema,
 )
-from gamedev_trends.contract import Erasure, Event, Observation
+from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
 from gamedev_trends.jetstream import Engagement, JetstreamEvent, OtherEvent, PostCreated, PostDeleted
 from gamedev_trends.kafka_bus import KafkaPublisher, KafkaSubscriber
-from gamedev_trends.store import BatchReport, StoreConsumer, to_row
+from gamedev_trends.store import BatchReport, StoreConsumer, to_excerpt_row, to_row
 
 pytestmark: pytest.MarkDecorator = pytest.mark.integration
 
@@ -60,6 +62,7 @@ async def database(stack: None) -> AsyncIterator[Db]:
         await ensure_schema(client, name)
         await ensure_erasures_schema(client, name)
         try:
+            await ensure_excerpts_schema(client, name)
             yield client, name
         finally:
             await client.execute(f"DROP DATABASE IF EXISTS {name} SYNC")
@@ -331,6 +334,22 @@ async def test_61_dashboard_queries_on_real_data(database: Db) -> None:
         ),
     ]
     await ClickHouseSink(client, name).write([to_row(o, hour_12(5)) for o in items])
+    w: str = "at://did:plc:itw/app.bsky.feed.post/rw"
+    await ClickHouseExcerptSink(client, name).write_excerpts(
+        [
+            to_excerpt_row(
+                Excerpt.create(
+                    source="bluesky",
+                    entity_type="post",
+                    entity_id=entity,
+                    text=text,
+                    posted_at=hour_12(0),
+                ),
+                hour_12(5),
+            )
+            for entity, text in ((x, "Hello #gamedev world"), (w, "orphan, not in observations"))
+        ]
+    )
 
     tags: list[dict[str, object]] = await client.select(with_range(TAGS_SQL), database=name)
     assert [(str(r["time"])[:19], r["tag"], int(str(r["posts"]))) for r in tags] == [
@@ -342,7 +361,8 @@ async def test_61_dashboard_queries_on_real_data(database: Db) -> None:
     assert [(r["metric"], float(str(r["per_second"]))) for r in rate] == [("events", 235.0)]
 
     top: list[dict[str, object]] = await client.select(with_range(TOP_SQL), database=name)
-    assert len(top) >= 2
+    assert len(top) == 3
+    assert [r["about"] for r in top] == ["Hello #gamedev world", "", ""]
     assert (float(str(top[0]["likes"])), float(str(top[0]["reposts"])), top[0]["tags"]) == (
         5.0,
         1.0,
@@ -353,6 +373,115 @@ async def test_61_dashboard_queries_on_real_data(database: Db) -> None:
         1.0,
         "https://bsky.app/profile/did:plc:ity/post/ry",
     )
+    assert top[2]["link"] == "https://bsky.app/profile/did:plc:itz/post/rz"
+    assert top[2]["tags"] == "pixelart"
+
+
+async def test_34_excerpt_sink_in_clickhouse(database: Db) -> None:
+    client: ClickHouseClient
+    name: str
+    client, name = database
+    token: str = uuid.uuid4().hex[:10]
+    odd: str = f"at://did:plc:it{token}/app.bsky.feed.post/it'q\\{token}"
+    plain: str = f"at://did:plc:it{token}/app.bsky.feed.post/plain"
+    odd_text: str = "It's \\ \u041f\u0440\u0438\u0432\u0435\u0442 \U0001f3ae"
+    items: list[Excerpt] = [
+        Excerpt.create(source="bluesky", entity_type="post", entity_id=e, text=text, posted_at=hour_12(0))
+        for e, text in ((odd, odd_text), (plain, "plain text"))
+    ]
+    rows: list[dict[str, str | float | None]] = [to_excerpt_row(x, hour_12(5)) for x in items]
+    sink: ClickHouseExcerptSink = ClickHouseExcerptSink(client, name)
+    await sink.write_excerpts(rows)
+    got: list[dict[str, object]] = await client.select(
+        "SELECT entity_id, text FROM excerpts FINAL ORDER BY entity_id", database=name
+    )
+    assert {(r["entity_id"], r["text"]) for r in got} == {(odd, odd_text), (plain, "plain text")}
+    assert len(got) == 2
+    await sink.write_excerpts([to_excerpt_row(x, hour_12(9)) for x in items])
+    again: list[dict[str, object]] = await client.select(
+        "SELECT count() AS n FROM excerpts FINAL", database=name
+    )
+    assert int(str(again[0]["n"])) == 2
+    await sink.erase_excerpts([("bluesky", "post", odd)])
+    left: list[dict[str, object]] = await client.select(
+        "SELECT entity_id, text FROM excerpts FINAL", database=name
+    )
+    assert left == [{"entity_id": plain, "text": "plain text"}]
+
+
+async def test_35_excerpts_through_kafka_and_erasure(
+    database: Db, redis_client: redis.asyncio.Redis, token: str
+) -> None:
+    client: ClickHouseClient
+    name: str
+    client, name = database
+    prefix: str = f"it-{token}:"
+    did_keep: str = f"did:plc:it{token}k"
+    did_gone: str = f"did:plc:it{token}g"
+    p_keep: str = f"at://{did_keep}/app.bsky.feed.post/keep"
+    p_gone: str = f"at://{did_gone}/app.bsky.feed.post/gone"
+    base: int = base_time_us()
+    group: str = f"it-{uuid.uuid4()}"
+    pin_group_to_end(group, [OBSERVATIONS_TOPIC, ERASURES_TOPIC])
+
+    publisher: TeePublisher = TeePublisher(KafkaPublisher(BOOTSTRAP))
+    collector: BlueskyCollector = BlueskyCollector(
+        RedisPostIndex(redis_client, prefix),
+        publisher,
+        RedisCursorStore(redis_client, f"{prefix}cursor"),
+    )
+    collector.start(None)
+    events: list[JetstreamEvent | None] = [
+        PostCreated(did=did_keep, rkey="keep", time_us=base + 1 * SEC, tags=("gamedev",), excerpt="keep me"),
+        PostCreated(
+            did=did_gone, rkey="gone", time_us=base + 2 * SEC, tags=("gamedev",), excerpt="gone soon"
+        ),
+        OtherEvent(did=did_keep, time_us=base + 61 * SEC),
+        PostDeleted(did=did_gone, rkey="gone", time_us=base + 62 * SEC),
+        OtherEvent(did=did_keep, time_us=base + 121 * SEC),
+    ]
+    sub: KafkaSubscriber = KafkaSubscriber(BOOTSTRAP, group, [OBSERVATIONS_TOPIC, ERASURES_TOPIC])
+    consumer: StoreConsumer = StoreConsumer(
+        sub,
+        ClickHouseSink(client, name),
+        max_seconds=1.0,
+        eraser=ClickHouseErasureSink(client, name),
+        excerpts=ClickHouseExcerptSink(client, name),
+    )
+    try:
+        await collector.handle(events)
+        wanted: set[str] = {str(e.event_id) for e in publisher.events}
+        assert wanted
+        await pump_until(consumer, wanted)
+        rows: list[dict[str, object]] = await client.select(
+            "SELECT entity_id, text FROM excerpts FINAL", database=name
+        )
+        assert rows == [{"entity_id": p_keep, "text": "keep me"}]
+
+        late: Excerpt = Excerpt.create(
+            source="bluesky",
+            entity_type="post",
+            entity_id=p_gone,
+            text="gone soon",
+            posted_at=datetime(1970, 1, 1, tzinfo=UTC) + timedelta(microseconds=base + 2 * SEC),
+        )
+        late_publisher: KafkaPublisher = KafkaPublisher(BOOTSTRAP)
+        try:
+            late_events: list[Event] = [late]
+            await late_publisher.publish(late_events)
+        finally:
+            await late_publisher.close()
+        reports: list[BatchReport] = await pump_until(consumer, {str(late.event_id)})
+        assert sum(r.dropped for r in reports) >= 1
+        after: list[dict[str, object]] = await client.select(
+            "SELECT entity_id, text FROM excerpts FINAL", database=name
+        )
+        assert after == [{"entity_id": p_keep, "text": "keep me"}]
+    finally:
+        await sub.close()
+        await publisher.close()
+        await drop_keys(redis_client, prefix)
+        await purge_radar(client, [p_keep, p_gone], base)
 
 
 def test_62_dashboard_is_provisioned_in_grafana(stack: None) -> None:

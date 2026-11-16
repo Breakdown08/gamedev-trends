@@ -25,24 +25,34 @@ WHERE source = 'bluesky' AND entity_type = 'stream' AND entity_id = 'jetstream'
 ORDER BY time, metric
 """
 
-TOP_SQL: str = "\n".join(
-    [
-        "SELECT",
-        "    concat('https://bsky.app/profile/', splitByChar('/', entity_id)[3], '/post/',"
-        " splitByChar('/', entity_id)[5]) AS link,",
-        "    sumIf(value, metric = 'likes') AS likes,",
-        "    sumIf(value, metric = 'reposts') AS reposts,",
-        "    arrayStringConcat(arraySort(groupUniqArrayIf(substring(metric, 5),"
-        " startsWith(metric, 'tag_'))), ' ') AS tags",
-        "FROM observations FINAL",
-        "WHERE source = 'bluesky' AND entity_type = 'post'",
-        "  AND window_start >= $__fromTime AND window_start <= $__toTime",
-        "GROUP BY entity_id",
-        "HAVING tags != ''",
-        "ORDER BY likes + reposts DESC, link",
-        "LIMIT 20",
-    ]
+TOP_SQL: str = """
+WITH ranked AS (
+    SELECT
+        entity_id,
+        concat('https://bsky.app/profile/', splitByChar('/', entity_id)[3], '/post/',
+            splitByChar('/', entity_id)[5]) AS link,
+        sumIf(value, metric = 'likes') AS likes,
+        sumIf(value, metric = 'reposts') AS reposts,
+        arrayStringConcat(arraySort(groupUniqArrayIf(substring(metric, 5),
+            startsWith(metric, 'tag_'))), ' ') AS tags
+    FROM observations FINAL
+    WHERE source = 'bluesky' AND entity_type = 'post'
+      AND window_start >= $__fromTime AND window_start <= $__toTime
+    GROUP BY entity_id
+    HAVING tags != ''
+    ORDER BY likes + reposts DESC, link
+    LIMIT 20
 )
+SELECT ranked.link AS link, e.text AS about, ranked.likes AS likes, ranked.reposts AS reposts,
+    ranked.tags AS tags
+FROM ranked
+LEFT JOIN (
+    SELECT entity_id, text
+    FROM excerpts FINAL
+    WHERE source = 'bluesky' AND entity_type = 'post' AND entity_id IN (SELECT entity_id FROM ranked)
+) AS e ON e.entity_id = ranked.entity_id
+ORDER BY likes + reposts DESC, link
+"""
 
 
 def collapse(sql: str) -> str:

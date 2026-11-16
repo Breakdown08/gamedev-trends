@@ -10,6 +10,8 @@ from typing import Literal, Protocol
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
+from gamedev_trends.contract import EXCERPT_MAX_LENGTH
+
 JETSTREAM_COLLECTIONS: tuple[str, ...] = (
     "app.bsky.feed.post",
     "app.bsky.feed.like",
@@ -21,6 +23,14 @@ DEFAULT_ENDPOINTS: tuple[str, ...] = (
 )
 TAG_FACET: str = "app.bsky.richtext.facet#tag"
 USER_AGENT: str = "gamedev-trends/0.1"
+ELLIPSIS: str = "\u2026"
+
+
+def make_excerpt(text: str, limit: int = EXCERPT_MAX_LENGTH) -> str:
+    cleaned: str = " ".join(text.encode("utf-8", "replace").decode("utf-8").split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 1].rstrip() + ELLIPSIS
 
 
 def subscribe_url(endpoint: str, collections: Sequence[str], cursor: int | None) -> str:
@@ -56,6 +66,7 @@ class PostCreated:
     rkey: str
     time_us: int
     tags: tuple[str, ...]
+    excerpt: str = ""
 
     @property
     def uri(self) -> str:
@@ -137,7 +148,14 @@ def _parse_commit(commit: object, did: str, time_us: int) -> JetstreamEvent | No
         return None
     record: object = commit.get("record")
     if collection == "app.bsky.feed.post" and operation == "create":
-        return PostCreated(did=did, rkey=rkey, time_us=time_us, tags=_tags(record))
+        text: object = record.get("text") if isinstance(record, dict) else None
+        return PostCreated(
+            did=did,
+            rkey=rkey,
+            time_us=time_us,
+            tags=_tags(record),
+            excerpt=make_excerpt(text) if isinstance(text, str) else "",
+        )
     if collection == "app.bsky.feed.post" and operation == "delete":
         return PostDeleted(did=did, rkey=rkey, time_us=time_us)
     if operation == "create" and collection in ("app.bsky.feed.like", "app.bsky.feed.repost"):

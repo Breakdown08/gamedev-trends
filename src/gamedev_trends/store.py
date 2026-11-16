@@ -17,7 +17,7 @@ from typing import Protocol
 import httpx
 
 from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC, Subscriber
-from gamedev_trends.contract import Erasure, Event, Observation
+from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
 
 logger: logging.Logger = logging.getLogger("gamedev_trends.store")
 
@@ -59,6 +59,19 @@ def to_row(obs: Observation, ingested_at: datetime) -> Row:
     }
 
 
+def to_excerpt_row(excerpt: Excerpt, ingested_at: datetime) -> Row:
+    """A row of the excerpts table."""
+    return {
+        "event_id": str(excerpt.event_id),
+        "source": excerpt.source,
+        "entity_type": excerpt.entity_type,
+        "entity_id": excerpt.entity_id,
+        "text": excerpt.text,
+        "posted_at": format_datetime(excerpt.posted_at),
+        "ingested_at": format_datetime(ingested_at),
+    }
+
+
 class SinkError(Exception):
     """The batch was not written; the write can be retried."""
 
@@ -82,6 +95,16 @@ class ErasureSink(Protocol):
         ...
 
 
+class ExcerptSink(Protocol):
+    async def write_excerpts(self, rows: Sequence[Row]) -> None:
+        """Write all rows or raise SinkError."""
+        ...
+
+    async def erase_excerpts(self, keys: Sequence[EntityKey]) -> None:
+        """Delete the excerpts of these entities or raise SinkError."""
+        ...
+
+
 @dataclass(frozen=True)
 class BatchReport:
     events: int
@@ -90,6 +113,7 @@ class BatchReport:
     committed: bool
     erasures: int = 0
     dropped: int = 0
+    excerpts: int = 0
 
 
 class StoreConsumer:
@@ -107,6 +131,7 @@ class StoreConsumer:
         monotonic: Callable[[], float] = time.monotonic,
         now: Now = lambda: datetime.now(UTC),
         eraser: ErasureSink | None = None,
+        excerpts: ExcerptSink | None = None,
     ) -> None:
         if max_events < 1:
             raise ValueError(f"max_events must be >= 1, got {max_events}")
@@ -129,6 +154,7 @@ class StoreConsumer:
         self._monotonic: Callable[[], float] = monotonic
         self._now: Now = now
         self._eraser: ErasureSink | None = eraser
+        self._excerpts: ExcerptSink | None = excerpts
 
     async def next_batch(self) -> list[Event]:
         """One batch: closes by size or max_seconds after the first event, whichever comes first."""
@@ -161,12 +187,15 @@ class StoreConsumer:
         """Write the observations of the batch (retrying until it succeeds), then commit."""
         observations: list[Observation] = []
         erasures: list[Erasure] = []
+        excerpts: list[Excerpt] = []
         event: Event
         for event in events:
             if isinstance(event, Observation):
                 observations.append(event)
             elif isinstance(event, Erasure) and self._eraser is not None:
                 erasures.append(event)
+            elif isinstance(event, Excerpt) and self._excerpts is not None:
+                excerpts.append(event)
             else:
                 logger.warning("skipping non-observation event: event_id=%s", event.event_id)
         ingested_at: datetime = self._now()
@@ -175,18 +204,33 @@ class StoreConsumer:
             eraser: ErasureSink = self._eraser
             if erasures:
                 await self._retry("erase", lambda: eraser.erase(erasures, ingested_at))
-            if observations:
+                if self._excerpts is not None:
+                    excerpt_sink: ExcerptSink = self._excerpts
+                    gone: list[EntityKey] = list(
+                        dict.fromkeys((e.source, e.entity_type, e.entity_id) for e in erasures)
+                    )
+                    await self._retry("erase_excerpts", lambda: excerpt_sink.erase_excerpts(gone))
+            if observations or excerpts:
                 keys: list[EntityKey] = list(
-                    dict.fromkeys((o.source, o.entity_type, o.entity_id) for o in observations)
+                    dict.fromkeys(
+                        (e.source, e.entity_type, e.entity_id)
+                        for e in events
+                        if isinstance(e, Observation)
+                        or (isinstance(e, Excerpt) and self._excerpts is not None)
+                    )
                 )
                 erased: set[EntityKey] = await self._retry("erased", lambda: eraser.erased(keys))
                 if erased:
                     kept: list[Observation] = [
                         o for o in observations if (o.source, o.entity_type, o.entity_id) not in erased
                     ]
-                    dropped = len(observations) - len(kept)
-                    logger.info("dropping %d observation(s) of erased entities", dropped)
+                    kept_excerpts: list[Excerpt] = [
+                        x for x in excerpts if (x.source, x.entity_type, x.entity_id) not in erased
+                    ]
+                    dropped = len(observations) - len(kept) + len(excerpts) - len(kept_excerpts)
+                    logger.info("dropping %d event(s) of erased entities", dropped)
                     observations = kept
+                    excerpts = kept_excerpts
         rows: list[Row] = [to_row(o, ingested_at) for o in observations]
         attempts: int = 0
         if rows:
@@ -199,6 +243,12 @@ class StoreConsumer:
                     delay: float = retry_delay(attempts, self._retry_base, self._retry_max)
                     logger.warning("write attempt %d failed: %s; retrying in %.1fs", attempts, exc, delay)
                     await self._sleep(delay)
+        written: int = 0
+        if excerpts and self._excerpts is not None:
+            writer: ExcerptSink = self._excerpts
+            excerpt_rows: list[Row] = [to_excerpt_row(x, ingested_at) for x in excerpts]
+            await self._retry("write_excerpts", lambda: writer.write_excerpts(excerpt_rows))
+            written = len(excerpt_rows)
         committed: bool = True
         try:
             await self._subscriber.commit()
@@ -212,6 +262,7 @@ class StoreConsumer:
             committed=committed,
             erasures=len(erasures),
             dropped=dropped,
+            excerpts=written,
         )
         logger.info(
             "batch: events=%d rows=%d attempts=%d committed=%s",
@@ -321,8 +372,10 @@ async def _serve(config: StoreConfig) -> None:
         ClickHouseClient,
         ClickHouseErasureSink,
         ClickHouseError,
+        ClickHouseExcerptSink,
         ClickHouseSink,
         ensure_erasures_schema,
+        ensure_excerpts_schema,
         ensure_schema,
     )
     from gamedev_trends.kafka_bus import KafkaSubscriber
@@ -338,6 +391,7 @@ async def _serve(config: StoreConfig) -> None:
             try:
                 await ensure_schema(client, config.clickhouse_database)
                 await ensure_erasures_schema(client, config.clickhouse_database)
+                await ensure_excerpts_schema(client, config.clickhouse_database)
                 break
             except ClickHouseError as exc:
                 attempt += 1
@@ -352,6 +406,7 @@ async def _serve(config: StoreConfig) -> None:
             subscriber,
             ClickHouseSink(client, config.clickhouse_database),
             eraser=ClickHouseErasureSink(client, config.clickhouse_database),
+            excerpts=ClickHouseExcerptSink(client, config.clickhouse_database),
             max_events=config.batch_max_events,
             max_seconds=config.batch_max_seconds,
             retry_base=config.retry_base_seconds,

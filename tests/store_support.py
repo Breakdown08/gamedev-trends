@@ -183,3 +183,36 @@ class FakeEraser:
         if self.erased_failures < 0 or len(self.erased_calls) <= self.erased_failures:
             raise SinkError("down")
         return set(self.erased_keys)
+
+
+class FakeExcerptSink:
+    """ExcerptSink double. A failure counter of -1 means "always fails"."""
+
+    def __init__(
+        self,
+        journal: list[str] | None = None,
+        *,
+        write_failures: int = 0,
+        erase_failures: int = 0,
+        write_error: Exception | None = None,
+    ) -> None:
+        self.journal: list[str] = journal if journal is not None else []
+        self.write_failures: int = write_failures
+        self.erase_failures: int = erase_failures
+        self.write_error: Exception | None = write_error
+        self.write_calls: list[list[Row]] = []
+        self.erase_calls: list[list[EntityKey]] = []
+
+    async def write_excerpts(self, rows: Sequence[Row]) -> None:
+        self.write_calls.append([dict(r) for r in rows])
+        self.journal.append("write_excerpts")
+        if self.write_error is not None:
+            raise self.write_error
+        if self.write_failures < 0 or len(self.write_calls) <= self.write_failures:
+            raise SinkError("down")
+
+    async def erase_excerpts(self, keys: Sequence[EntityKey]) -> None:
+        self.erase_calls.append(list(keys))
+        self.journal.append("erase_excerpts")
+        if self.erase_failures < 0 or len(self.erase_calls) <= self.erase_failures:
+            raise SinkError("down")

@@ -16,7 +16,7 @@ from gamedev_trends.bluesky import (
     Stats,
 )
 from gamedev_trends.bus import InMemoryBroker, InMemoryPublisher, PublishError, Record, decode
-from gamedev_trends.contract import Erasure, Event, Observation
+from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
 from gamedev_trends.jetstream import (
     ConnectionLost,
     Engagement,
@@ -162,8 +162,20 @@ def observations(broker: InMemoryBroker) -> list[Observation]:
     record: Record
     for record in broker.records(OBS_TOPIC):
         event: Event = decode(record.value)
+        if isinstance(event, Excerpt):
+            continue
         assert isinstance(event, Observation)
         out.append(event)
+    return out
+
+
+def excerpts(broker: InMemoryBroker) -> list[Excerpt]:
+    out: list[Excerpt] = []
+    record: Record
+    for record in broker.records(OBS_TOPIC):
+        event: Event = decode(record.value)
+        if isinstance(event, Excerpt):
+            out.append(event)
     return out
 
 

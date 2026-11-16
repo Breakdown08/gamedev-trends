@@ -37,7 +37,8 @@ Steam panels:
 
 Bluesky radar panels: "Tag frequency" (posts per whitelisted tag per hour), "Stream rate" (Jetstream
 events, posts, likes and reposts per second, one point per window) and "Top posts" (the 20 tagged posts
-with the most likes and reposts in the time range, with a link to bsky.app).
+with the most likes and reposts in the time range, with a link to bsky.app and the `about` column: the
+excerpt of the post text; it is empty for posts recorded before excerpts existed).
 
 Steam variables: `game` picks the games for the two graphs (the latest number 1 is the default), `period`
 (1, 7 or 30 days) is how far back the movements table compares. Games are labelled by `appid`, not by
@@ -104,9 +105,10 @@ words). Time is the Jetstream `time_us`, never the machine clock. Events are gro
 | `stream` / `jetstream` | `events`, `posts`, `likes`, `reposts` | all parsed events, created posts, likes and reposts of the window (zeros too) |
 | `post` / at-URI | `tag_<tag>` | 1, one per matching tag of a new tagged post |
 | `post` / at-URI | `likes`, `reposts` | likes and reposts of a tracked post in the window (no zeros) |
+| `post` / at-URI | `excerpt` event (not a measurement) | the first 140 characters of the text of a new tagged post; none if the text is empty |
 
 A post is tracked for likes and reposts for `BLUESKY_TRACK_HOURS` (24) after it was posted. Tag frequency
-is a query: the number of `tag_<tag>` rows per hour. Not stored: post texts, handles, who liked. Not
+is a query: the number of `tag_<tag>` rows per hour. Stored: an excerpt, the first 140 characters of the text of a tagged post, whitespace collapsed, a longer text cut with `…`; an edit of the post does not change it. Not stored: the full text, handles, who liked. Not
 subtracted: withdrawn likes and reposts, so `likes` means "likes made in the window". Quotes, replies and
 post edits are not handled.
 
@@ -237,5 +239,10 @@ measurements of its entity (exact match of source, type and id) from `radar.obse
 of an erased entity that arrives later is dropped before it is written. The hourly aggregate drops the
 erased rows at its next recomputation, up to 5 minutes later. The `radar-store` consumer group starts
 reading the erasures topic from the beginning.
+
+Excerpts: an `excerpt` event (same topic as the measurements) is written to `radar.excerpts`, one row per
+post (`ReplacingMergeTree`, read it with `FINAL`; no TTL). Erasing a post or an account deletes its
+excerpt, and an excerpt of an erased post that arrives later is dropped. Excerpts stay in the Kafka log
+until the topic retention ends.
 
 Not covered: the HTTP API.

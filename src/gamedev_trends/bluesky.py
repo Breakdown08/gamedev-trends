@@ -21,7 +21,7 @@ from redis.asyncio import Redis as AsyncRedis
 from redis.asyncio.client import Pipeline
 
 from gamedev_trends.bus import Publisher
-from gamedev_trends.contract import Erasure, Event, Observation
+from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
 from gamedev_trends.jetstream import (
     DEFAULT_ENDPOINTS,
     JETSTREAM_COLLECTIONS,
@@ -210,6 +210,7 @@ class _Window:
     like_counts: dict[str, int] = field(default_factory=dict)
     repost_counts: dict[str, int] = field(default_factory=dict)
     erased: dict[str, int] = field(default_factory=dict)
+    excerpts: dict[str, tuple[str, int]] = field(default_factory=dict)
 
 
 class BlueskyCollector:
@@ -288,6 +289,8 @@ class BlueskyCollector:
             if matched and len(uri) <= MAX_URI_LENGTH:
                 await self._index.add(uri, event.did, event.time_us)
                 window.tagged[uri] = matched
+                if event.excerpt:
+                    window.excerpts[uri] = (event.excerpt, event.time_us)
                 self.stats.tagged_posts += 1
         elif isinstance(event, PostDeleted):
             await self._erase(window, event.uri, event.time_us)
@@ -318,6 +321,7 @@ class BlueskyCollector:
     @staticmethod
     def _forget(window: _Window, uri: str, time_us: int) -> None:
         window.tagged.pop(uri, None)
+        window.excerpts.pop(uri, None)
         window.like_counts.pop(uri, None)
         window.repost_counts.pop(uri, None)
         window.erased.setdefault(uri, time_us)
@@ -354,6 +358,19 @@ class BlueskyCollector:
         for uri, value in window.repost_counts.items():
             out.append(observation(ENTITY_POST, uri, METRIC_REPOSTS, value))
         time_us: int
+        text: str
+        for uri in window.tagged:
+            if uri in window.excerpts:
+                text, time_us = window.excerpts[uri]
+                out.append(
+                    Excerpt.create(
+                        source=SOURCE,
+                        entity_type=ENTITY_POST,
+                        entity_id=uri,
+                        text=text,
+                        posted_at=us_to_datetime(time_us),
+                    )
+                )
         for uri, time_us in window.erased.items():
             out.append(
                 Erasure.create(

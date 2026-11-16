@@ -102,3 +102,10 @@ async def purge_radar(
         f"OR (entity_type = 'stream' AND entity_id = 'jetstream' AND hour >= {start} AND hour < {end}))"
     )
     await client.execute(f"DELETE FROM {database}.erasures WHERE source = 'bluesky' AND entity_id IN ({ids})")
+    exists: list[dict[str, object]] = await client.select(
+        f"SELECT count() AS e FROM system.tables WHERE database = '{database}' AND name = 'excerpts'"
+    )
+    if int(str(exists[0]["e"])) == 1:
+        await client.execute(
+            f"DELETE FROM {database}.excerpts WHERE source = 'bluesky' AND entity_id IN ({ids})"
+        )

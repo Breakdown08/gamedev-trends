@@ -90,7 +90,9 @@ def test_05_post_with_facet_and_record_tags() -> None:
         {"text": "x", "facets": [tag_facet("GameDev")], "tags": ["#art", "gamedev"]},
     )
     event: JetstreamEvent | None = parse_event(raw)
-    assert event == PostCreated(did="did:plc:a", rkey="p1", time_us=1794744001000000, tags=("gamedev", "art"))
+    assert event == PostCreated(
+        did="did:plc:a", rkey="p1", time_us=1794744001000000, tags=("gamedev", "art"), excerpt="x"
+    )
     assert isinstance(event, PostCreated)
     assert event.uri == "at://did:plc:a/app.bsky.feed.post/p1"
 
@@ -102,19 +104,18 @@ def test_05_tags_are_normalised_deduplicated_and_empty_ones_dropped() -> None:
     assert event.tags == ("b", "a", "c")
 
 
-def test_05_the_text_is_not_kept() -> None:
-    event: JetstreamEvent | None = parse_event(post_frame(facet_tags=["gamedev"]))
-    assert isinstance(event, PostCreated)
-    assert "hello" not in repr(event)
-
-
 @pytest.mark.parametrize(
-    "record",
-    [None, {"text": "x", "facets": "x"}, {"text": "x", "tags": None}, {"facets": [1, {"features": "x"}]}],
+    ("record", "excerpt"),
+    [
+        (None, ""),
+        ({"text": "x", "facets": "x"}, "x"),
+        ({"text": "x", "tags": None}, "x"),
+        ({"facets": [1, {"features": "x"}]}, ""),
+    ],
 )
-def test_06_malformed_record_parts_give_no_tags(record: dict[str, Any] | None) -> None:
+def test_06_malformed_record_parts_give_no_tags(record: dict[str, Any] | None, excerpt: str) -> None:
     raw: str = commit_frame(A, T0, "create", "app.bsky.feed.post", "p1", record)
-    assert parse_event(raw) == PostCreated(did=A, rkey="p1", time_us=T0, tags=())
+    assert parse_event(raw) == PostCreated(did=A, rkey="p1", time_us=T0, tags=(), excerpt=excerpt)
 
 
 def test_06_other_facet_type_gives_no_tag() -> None:

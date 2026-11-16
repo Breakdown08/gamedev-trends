@@ -252,3 +252,55 @@ class ClickHouseErasureSink:
         except ClickHouseError as exc:
             raise SinkError(str(exc)) from exc
         return found
+
+
+EXCERPTS_TABLE: str = "excerpts"
+
+
+def excerpts_schema_sql(database: str) -> list[str]:
+    """One DDL statement: the excerpts table (no TTL). A bad database name raises ValueError."""
+    if re.fullmatch(DATABASE_PATTERN, database) is None:
+        raise ValueError(f"database name must match {DATABASE_PATTERN}, got {database!r}")
+    return [
+        f"""CREATE TABLE IF NOT EXISTS {database}.{EXCERPTS_TABLE} (
+    event_id    UUID,
+    source      LowCardinality(String),
+    entity_type LowCardinality(String),
+    entity_id   String,
+    text        String,
+    posted_at   DateTime64(6, 'UTC'),
+    ingested_at DateTime64(6, 'UTC')
+) ENGINE = ReplacingMergeTree(ingested_at)
+ORDER BY (source, entity_type, entity_id)"""
+    ]
+
+
+async def ensure_excerpts_schema(client: ClickHouseClient, database: str) -> None:
+    """Create the excerpts table. Idempotent."""
+    statement: str
+    for statement in excerpts_schema_sql(database):
+        await client.execute(statement)
+
+
+class ClickHouseExcerptSink:
+    def __init__(self, client: ClickHouseClient, database: str) -> None:
+        self._client: ClickHouseClient = client
+        self._database: str = database
+
+    async def write_excerpts(self, rows: Sequence[Row]) -> None:
+        try:
+            await self._client.insert_rows(EXCERPTS_TABLE, rows, database=self._database)
+        except ClickHouseError as exc:
+            raise SinkError(str(exc)) from exc
+
+    async def erase_excerpts(self, keys: Sequence[EntityKey]) -> None:
+        distinct: list[EntityKey] = list(dict.fromkeys(keys))
+        try:
+            chunk: Sequence[EntityKey]
+            for chunk in _chunks(distinct):
+                await self._client.execute(
+                    f"DELETE FROM {self._database}.{EXCERPTS_TABLE} "
+                    f"WHERE (source, entity_type, entity_id) IN ({_tuples(chunk)})"
+                )
+        except ClickHouseError as exc:
+            raise SinkError(str(exc)) from exc
