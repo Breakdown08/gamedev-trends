@@ -9,11 +9,16 @@ BASE_COMMIT: str = "030389a"
 
 
 def test_02_pyproject_unchanged_since_steam_task() -> None:
+    """Since 030389a exactly one line was added (the WebSocket client) and none was removed."""
     diff: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "diff", BASE_COMMIT, "--", "pyproject.toml"], cwd=ROOT, capture_output=True, text=True
     )
     assert diff.returncode == 0, diff.stderr
-    assert diff.stdout == ""
+    lines: list[str] = diff.stdout.splitlines()
+    removed: list[str] = [x for x in lines if x.startswith("-") and not x.startswith("---")]
+    added: list[str] = [x for x in lines if x.startswith("+") and not x.startswith("+++")]
+    assert removed == []
+    assert added == ['+    "websockets>=17.4,<18",']
 
 
 def test_03_store_integration_tests_collected_only_on_request() -> None:

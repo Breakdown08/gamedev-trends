@@ -58,8 +58,11 @@ services:
 
   redis:
     image: redis:8.8.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -77,6 +80,20 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_URL: redis://redis:6379/0
     restart: "no"
+
+  bluesky-collector:
+    build: .
+    profiles: [collectors]
+    command: ["/app/.venv/bin/python", "-m", "gamedev_trends.bluesky"]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
 
   store:
     build: .
@@ -123,3 +140,4 @@ services:
 volumes:
   kafka-data:
   clickhouse-data:
+  redis-data:

@@ -1,0 +1,178 @@
+{
+  "uid": "radar-bluesky",
+  "title": "Bluesky radar",
+  "id": null,
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "radar"
+  ],
+  "timezone": "utc",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Tag frequency",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT toStartOfHour(window_start) AS time, substring(metric, 5) AS tag, count() AS posts\nFROM observations FINAL\nWHERE source = 'bluesky' AND entity_type = 'post' AND startsWith(metric, 'tag_')\n  AND window_start >= $__fromTime AND window_start <= $__toTime\nGROUP BY time, tag\nORDER BY time, tag",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Stream rate",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT window_start AS time, metric, value / dateDiff('second', window_start, observed_at) AS per_second\nFROM observations FINAL\nWHERE source = 'bluesky' AND entity_type = 'stream' AND entity_id = 'jetstream'\n  AND window_start >= $__fromTime AND window_start <= $__toTime\nORDER BY time, metric",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Top posts",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "link"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open on Bluesky",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT\n    concat('https://bsky.app/profile/', splitByChar('/', entity_id)[3], '/post/', splitByChar('/', entity_id)[5]) AS link,\n    sumIf(value, metric = 'likes') AS likes,\n    sumIf(value, metric = 'reposts') AS reposts,\n    arrayStringConcat(arraySort(groupUniqArrayIf(substring(metric, 5), startsWith(metric, 'tag_'))), ' ') AS tags\nFROM observations FINAL\nWHERE source = 'bluesky' AND entity_type = 'post'\n  AND window_start >= $__fromTime AND window_start <= $__toTime\nGROUP BY entity_id\nHAVING tags != ''\nORDER BY likes + reposts DESC, link\nLIMIT 20",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

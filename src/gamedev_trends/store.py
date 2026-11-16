@@ -16,8 +16,8 @@ from typing import Protocol
 
 import httpx
 
-from gamedev_trends.bus import OBSERVATIONS_TOPIC, Subscriber
-from gamedev_trends.contract import Event, Observation
+from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC, Subscriber
+from gamedev_trends.contract import Erasure, Event, Observation
 
 logger: logging.Logger = logging.getLogger("gamedev_trends.store")
 
@@ -69,12 +69,27 @@ class ObservationSink(Protocol):
         ...
 
 
+type EntityKey = tuple[str, str, str]
+
+
+class ErasureSink(Protocol):
+    async def erase(self, erasures: Sequence[Erasure], ingested_at: datetime) -> None:
+        """Record the erasures and delete the observations of their entities, or raise SinkError."""
+        ...
+
+    async def erased(self, keys: Sequence[EntityKey]) -> set[EntityKey]:
+        """Which of the keys are erased, or raise SinkError."""
+        ...
+
+
 @dataclass(frozen=True)
 class BatchReport:
     events: int
     rows: int
     attempts: int
     committed: bool
+    erasures: int = 0
+    dropped: int = 0
 
 
 class StoreConsumer:
@@ -91,6 +106,7 @@ class StoreConsumer:
         sleep: Sleep = asyncio.sleep,
         monotonic: Callable[[], float] = time.monotonic,
         now: Now = lambda: datetime.now(UTC),
+        eraser: ErasureSink | None = None,
     ) -> None:
         if max_events < 1:
             raise ValueError(f"max_events must be >= 1, got {max_events}")
@@ -112,6 +128,7 @@ class StoreConsumer:
         self._sleep: Sleep = sleep
         self._monotonic: Callable[[], float] = monotonic
         self._now: Now = now
+        self._eraser: ErasureSink | None = eraser
 
     async def next_batch(self) -> list[Event]:
         """One batch: closes by size or max_seconds after the first event, whichever comes first."""
@@ -128,16 +145,48 @@ class StoreConsumer:
             )
         return batch
 
+    async def _retry[T](self, step: str, call: Callable[[], Awaitable[T]]) -> T:
+        """Run call until it stops raising SinkError, sleeping retry_delay between attempts."""
+        attempt: int = 0
+        while True:
+            attempt += 1
+            try:
+                return await call()
+            except SinkError as exc:
+                delay: float = retry_delay(attempt, self._retry_base, self._retry_max)
+                logger.warning("%s attempt %d failed: %s; retrying in %.1fs", step, attempt, exc, delay)
+                await self._sleep(delay)
+
     async def flush(self, events: Sequence[Event]) -> BatchReport:
         """Write the observations of the batch (retrying until it succeeds), then commit."""
         observations: list[Observation] = []
+        erasures: list[Erasure] = []
         event: Event
         for event in events:
             if isinstance(event, Observation):
                 observations.append(event)
+            elif isinstance(event, Erasure) and self._eraser is not None:
+                erasures.append(event)
             else:
                 logger.warning("skipping non-observation event: event_id=%s", event.event_id)
         ingested_at: datetime = self._now()
+        dropped: int = 0
+        if self._eraser is not None:
+            eraser: ErasureSink = self._eraser
+            if erasures:
+                await self._retry("erase", lambda: eraser.erase(erasures, ingested_at))
+            if observations:
+                keys: list[EntityKey] = list(
+                    dict.fromkeys((o.source, o.entity_type, o.entity_id) for o in observations)
+                )
+                erased: set[EntityKey] = await self._retry("erased", lambda: eraser.erased(keys))
+                if erased:
+                    kept: list[Observation] = [
+                        o for o in observations if (o.source, o.entity_type, o.entity_id) not in erased
+                    ]
+                    dropped = len(observations) - len(kept)
+                    logger.info("dropping %d observation(s) of erased entities", dropped)
+                    observations = kept
         rows: list[Row] = [to_row(o, ingested_at) for o in observations]
         attempts: int = 0
         if rows:
@@ -157,7 +206,12 @@ class StoreConsumer:
             committed = False
             logger.exception("commit failed; the next commit will cover this position")
         report: BatchReport = BatchReport(
-            events=len(events), rows=len(rows), attempts=attempts, committed=committed
+            events=len(events),
+            rows=len(rows),
+            attempts=attempts,
+            committed=committed,
+            erasures=len(erasures),
+            dropped=dropped,
         )
         logger.info(
             "batch: events=%d rows=%d attempts=%d committed=%s",
@@ -263,7 +317,14 @@ class StoreConfig:
 
 async def _serve(config: StoreConfig) -> None:
     # Imported here: clickhouse.py imports Row and SinkError from this module.
-    from gamedev_trends.clickhouse import ClickHouseClient, ClickHouseError, ClickHouseSink, ensure_schema
+    from gamedev_trends.clickhouse import (
+        ClickHouseClient,
+        ClickHouseErasureSink,
+        ClickHouseError,
+        ClickHouseSink,
+        ensure_erasures_schema,
+        ensure_schema,
+    )
     from gamedev_trends.kafka_bus import KafkaSubscriber
 
     http: httpx.AsyncClient = httpx.AsyncClient(timeout=config.http_timeout_seconds)
@@ -276,6 +337,7 @@ async def _serve(config: StoreConfig) -> None:
         while True:
             try:
                 await ensure_schema(client, config.clickhouse_database)
+                await ensure_erasures_schema(client, config.clickhouse_database)
                 break
             except ClickHouseError as exc:
                 attempt += 1
@@ -283,10 +345,13 @@ async def _serve(config: StoreConfig) -> None:
                 logger.warning("schema attempt %d failed: %s; retrying in %.1fs", attempt, exc, delay)
                 await asyncio.sleep(delay)
         logger.info("schema ready: database=%s", config.clickhouse_database)
-        subscriber = KafkaSubscriber(config.kafka_bootstrap_servers, config.group, [OBSERVATIONS_TOPIC])
+        subscriber = KafkaSubscriber(
+            config.kafka_bootstrap_servers, config.group, [OBSERVATIONS_TOPIC, ERASURES_TOPIC]
+        )
         consumer: StoreConsumer = StoreConsumer(
             subscriber,
             ClickHouseSink(client, config.clickhouse_database),
+            eraser=ClickHouseErasureSink(client, config.clickhouse_database),
             max_events=config.batch_max_events,
             max_seconds=config.batch_max_seconds,
             retry_base=config.retry_base_seconds,

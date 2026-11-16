@@ -4,14 +4,18 @@ import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 
 import httpx
 
-from gamedev_trends.store import Row, SinkError
+from gamedev_trends.contract import Erasure
+from gamedev_trends.store import EntityKey, Row, SinkError, format_datetime
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 OBSERVATIONS_TABLE: str = "observations"
+ERASURES_TABLE: str = "erasures"
+ERASED_CHUNK: int = 500
 HOURLY_TABLE: str = "observations_hourly"
 HOURLY_VIEW: str = "observations_hourly_mv"
 HOURLY_REFRESH: str = "EVERY 5 MINUTE"
@@ -165,3 +169,86 @@ class ClickHouseSink:
             await self._client.insert_rows(OBSERVATIONS_TABLE, rows, database=self._database)
         except ClickHouseError as exc:
             raise SinkError(str(exc)) from exc
+
+
+def sql_string(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def erasures_schema_sql(database: str) -> list[str]:
+    """One DDL statement for the erasures table. A bad database name raises ValueError."""
+    if re.fullmatch(DATABASE_PATTERN, database) is None:
+        raise ValueError(f"database name must match {DATABASE_PATTERN}, got {database!r}")
+    return [
+        f"""CREATE TABLE IF NOT EXISTS {database}.{ERASURES_TABLE} (
+    event_id     UUID,
+    source       LowCardinality(String),
+    entity_type  LowCardinality(String),
+    entity_id    String,
+    requested_at DateTime64(6, 'UTC'),
+    ingested_at  DateTime64(6, 'UTC')
+) ENGINE = ReplacingMergeTree(ingested_at)
+ORDER BY (source, entity_type, entity_id)"""
+    ]
+
+
+async def ensure_erasures_schema(client: ClickHouseClient, database: str) -> None:
+    """Create the erasures table. Idempotent."""
+    statement: str
+    for statement in erasures_schema_sql(database):
+        await client.execute(statement)
+
+
+def _tuples(keys: Sequence[EntityKey]) -> str:
+    return ", ".join("(" + ", ".join(sql_string(part) for part in key) + ")" for key in keys)
+
+
+def _chunks(keys: Sequence[EntityKey]) -> list[Sequence[EntityKey]]:
+    return [keys[i : i + ERASED_CHUNK] for i in range(0, len(keys), ERASED_CHUNK)]
+
+
+class ClickHouseErasureSink:
+    def __init__(self, client: ClickHouseClient, database: str) -> None:
+        self._client: ClickHouseClient = client
+        self._database: str = database
+
+    async def erase(self, erasures: Sequence[Erasure], ingested_at: datetime) -> None:
+        rows: list[Row] = [
+            {
+                "event_id": str(e.event_id),
+                "source": e.source,
+                "entity_type": e.entity_type,
+                "entity_id": e.entity_id,
+                "requested_at": format_datetime(e.requested_at),
+                "ingested_at": format_datetime(ingested_at),
+            }
+            for e in erasures
+        ]
+        keys: list[EntityKey] = list(dict.fromkeys((e.source, e.entity_type, e.entity_id) for e in erasures))
+        try:
+            await self._client.insert_rows(ERASURES_TABLE, rows, database=self._database)
+            chunk: Sequence[EntityKey]
+            for chunk in _chunks(keys):
+                await self._client.execute(
+                    f"DELETE FROM {self._database}.{OBSERVATIONS_TABLE} "
+                    f"WHERE (source, entity_type, entity_id) IN ({_tuples(chunk)})"
+                )
+        except ClickHouseError as exc:
+            raise SinkError(str(exc)) from exc
+
+    async def erased(self, keys: Sequence[EntityKey]) -> set[EntityKey]:
+        found: set[EntityKey] = set()
+        try:
+            chunk: Sequence[EntityKey]
+            for chunk in _chunks(keys):
+                result: list[dict[str, object]] = await self._client.select(
+                    "SELECT source, entity_type, entity_id "
+                    f"FROM {self._database}.{ERASURES_TABLE} "
+                    f"WHERE (source, entity_type, entity_id) IN ({_tuples(chunk)})"
+                )
+                row: dict[str, object]
+                for row in result:
+                    found.add((str(row["source"]), str(row["entity_type"]), str(row["entity_id"])))
+        except ClickHouseError as exc:
+            raise SinkError(str(exc)) from exc
+        return found
