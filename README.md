@@ -139,6 +139,14 @@ docker compose up -d --wait
 uv run python -m gamedev_trends.bluesky --duration 600
 ```
 
+On NixOS the uv-managed Python does not find the system CA bundle (`/etc/ssl/cert.pem` does not exist and
+`/etc/ssl/certs` has no hashed links), so every Jetstream connection fails with
+`SSLCertVerificationError`. Point OpenSSL at the bundle:
+
+```bash
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt uv run python -m gamedev_trends.bluesky --duration 600
+```
+
 Run it as a service. The service is in the `collectors` profile, so plain `docker compose up -d --wait`
 does not start it:
 
