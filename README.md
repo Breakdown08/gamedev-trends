@@ -178,6 +178,11 @@ day, about 200 MB a year.
 - 2026-11-16, 08:48–08:58 UTC, from the host, default tags: `bluesky summary` gave 121 947 events in
   605 s (201.6/s), 7 tagged posts, 13 likes and reposts of tracked posts, 0 erasures. ClickHouse has 10
   consecutive `stream events` windows for that run, 195 to 209 events/s each.
+- 2026-11-16, service from the image (`--profile collectors`): `restart` at 09:03 UTC resumed from the
+  cursor of the open window, `stream events` windows 08:55–09:08 have no gap. Kafka stopped for 2 minutes
+  (09:05–09:07): the collector logged `PublishError`, reconnected from the cursor and did not exit; the
+  windows of the outage arrived after `docker compose start kafka` with the usual values (206–213/s). One
+  real erasure (a deleted tagged post) left 0 observations of that URI.
 
 ## Storage
 
