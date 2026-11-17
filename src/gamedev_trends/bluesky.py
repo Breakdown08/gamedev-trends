@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 import redis
 import redis.asyncio
@@ -45,6 +45,8 @@ from gamedev_trends.store import Sleep
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+type Reconnect = Literal["replay", "live"]
+RECONNECT_MODES: tuple[Reconnect, ...] = ("replay", "live")
 SOURCE: str = "bluesky"
 ENTITY_POST: str = "post"
 ENTITY_STREAM: str = "stream"
@@ -559,16 +561,20 @@ async def run_forever(
     backoff_base: float = 1.0,
     backoff_max: float = 30.0,
     max_replay_seconds: int | None = None,
+    reconnect: Reconnect = "replay",
     sleep: Sleep = asyncio.sleep,
     monotonic: Callable[[], float] = time.monotonic,
     clock: Callable[[], float] = time.time,
     max_sessions: int | None = None,
 ) -> None:
+    if reconnect not in RECONNECT_MODES:
+        raise ValueError(f"reconnect must be 'replay' or 'live', got {reconnect!r}")
     failures: int = 0
     sessions: int = 0
     i: int = 0
     loaded: bool = False
     initial: int | None = None
+    last_live_to_us: int | None = None
 
     def too_old(from_us: int, now_us: int) -> bool:
         return max_replay_seconds is not None and now_us - from_us > max_replay_seconds * 1_000_000
@@ -580,6 +586,15 @@ async def run_forever(
             now_us,
             (now_us - from_us) // 1_000_000,
             max_replay_seconds,
+        )
+
+    def log_reconnect_gap(position_us: int, now_us: int) -> None:
+        from_us: int = position_us if last_live_to_us is None else max(position_us, last_live_to_us)
+        logger.info(
+            "bluesky gap: from=%d to=%d seconds=%.1f reconnect=live; reading the live stream",
+            from_us,
+            now_us,
+            (now_us - from_us) / 1e6,
         )
 
     while True:
@@ -604,6 +619,12 @@ async def run_forever(
                 mode = "live" if initial is None else "start"
             elif too_old(position, now_us):
                 log_gap(position, now_us)
+                collector.resume(live=True)
+                url_cursor = None
+                mode = "live"
+            elif reconnect == "live":
+                log_reconnect_gap(position, now_us)
+                last_live_to_us = now_us
                 collector.resume(live=True)
                 url_cursor = None
                 mode = "live"
@@ -654,6 +675,7 @@ class BlueskyConfig:
     backoff_base_seconds: float = 1.0
     backoff_max_seconds: float = 30.0
     max_replay_seconds: int = 300
+    reconnect: Reconnect = "replay"
 
     @property
     def replay_limit_seconds(self) -> int:
@@ -710,6 +732,13 @@ class BlueskyConfig:
         cap: float = _float(env, "BLUESKY_BACKOFF_MAX_SECONDS", d.backoff_max_seconds)
         if cap < base:
             raise ValueError(f"BLUESKY_BACKOFF_MAX_SECONDS: must be >= {base} (the base delay), got {cap}")
+        raw_reconnect: str = env.get("BLUESKY_RECONNECT", "").strip()
+        reconnect: Reconnect = d.reconnect
+        if raw_reconnect:
+            mode: Reconnect | None = next((m for m in RECONNECT_MODES if m == raw_reconnect), None)
+            if mode is None:
+                raise ValueError(f"BLUESKY_RECONNECT: expected replay or live, got {raw_reconnect!r}")
+            reconnect = mode
         return cls(
             kafka_bootstrap_servers=_str(env, "KAFKA_BOOTSTRAP_SERVERS", d.kafka_bootstrap_servers),
             redis_url=_str(env, "REDIS_URL", d.redis_url),
@@ -723,6 +752,7 @@ class BlueskyConfig:
             backoff_base_seconds=base,
             backoff_max_seconds=cap,
             max_replay_seconds=max_replay,
+            reconnect=reconnect,
         )
 
 
@@ -788,6 +818,7 @@ async def _serve(config: BlueskyConfig, duration: float | None) -> None:
         )
         stats = collector.stats
         logger.info("bluesky replay limit: %ds", config.replay_limit_seconds)
+        logger.info("bluesky reconnect: %s", config.reconnect)
         try:
             async with asyncio.timeout(duration):
                 await run_forever(
@@ -801,6 +832,7 @@ async def _serve(config: BlueskyConfig, duration: float | None) -> None:
                     backoff_base=config.backoff_base_seconds,
                     backoff_max=config.backoff_max_seconds,
                     max_replay_seconds=config.replay_limit_seconds,
+                    reconnect=config.reconnect,
                 )
         except TimeoutError:
             if duration is None:

@@ -122,8 +122,8 @@ Cursor: after each published window the `time_us` of the start of the next one i
 (`bluesky:cursor`, with AOF persistence in the `redis-data` volume). It is the boundary for a restart of
 the process: the collector reads it once, and the Jetstream is read again from it with the open window
 recomputed whole; the measurements get the same `event_id`, so no duplicates remain. Inside a running
-process a reconnect continues from the `time_us` of the last accepted event instead, and the open window
-is kept. Events that arrive again on that boundary are crossed off (and counted in `late`), so nothing is
+process, with `BLUESKY_RECONNECT=replay` (the default), a reconnect continues from the `time_us` of the
+last accepted event instead, and the open window is kept. Events that arrive again on that boundary are crossed off (and counted in `late`), so nothing is
 counted twice or lost. The first window after a cold start (no cursor) is incomplete.
 
 Interruptions: the Jetstream drops a connection about once a minute, and reading again from a cursor does
@@ -137,6 +137,21 @@ first session after a restart, `resume` continues from the last event, `live` ha
 far behind the cursor is. Limitation: every Jetstream instance sets `time_us` itself, so if a session
 without a single frame switched to another endpoint, the position from the previous one is approximate
 there, and a few events may be lost or repeated at the boundary.
+
+With `BLUESKY_RECONNECT=live` a reconnect inside the process does not use a cursor: the open window is
+kept, the collector reads the live stream and logs one INFO line per reconnect,
+`bluesky gap: from=<time_us> to=<time_us> seconds=<s> reconnect=live; reading the live stream`
+(`seconds` has one decimal; consecutive lines do not overlap, so their sum is the lost time). So
+`mode=live` appears in the session lines in both modes; a line with `max_replay=` still means that the
+position was older than the limit. At process start the cursor from Redis is replayed in both modes.
+
+Choosing the mode (observed on this host on 2026-11-17, not a statement about Jetstream in general): a
+session lasts about 46 s, the data flows for about 41 s, and then the connection silently freezes. With
+`replay` only 20-27 s of the feed pass per session and `lag` grows (87.6, 114.3, 142.6, 164.4 s over four
+sessions) until the limit is hit and there is a gap; that is about 40% lost. The live stream without a
+cursor runs at full speed, so `live` loses about 6 s per reconnect (about 13%; an estimate, not yet
+measured). That is why compose sets `live`. To see `lag`:
+`docker compose logs bluesky-collector | grep 'bluesky session'`.
 
 Back pressure: between the socket and Kafka there is a bounded queue (`BLUESKY_QUEUE_SIZE`). When it is
 full the socket is not read. A lost connection or `BLUESKY_IDLE_TIMEOUT_SECONDS` without frames starts a
@@ -181,6 +196,7 @@ An invalid value makes the process exit with code 2.
 | `BLUESKY_WINDOW_SECONDS` | `60` | Window length, at least 10 and a divisor of 3600 |
 | `BLUESKY_TRACK_HOURS` | `24` | How long likes and reposts of a post count, 1 to 168 |
 | `BLUESKY_MAX_REPLAY_SECONDS` | `300` | Longest replay from a cursor (at least twice the window); an older cursor means reading live and logging the gap |
+| `BLUESKY_RECONNECT` | `replay` | After a dropped connection: `replay` continues from the last event, `live` reads the live stream and logs the gap |
 | `BLUESKY_QUEUE_SIZE` | `10000` | Frames between the socket and the handler, 1 to 1000000 |
 | `BLUESKY_IDLE_TIMEOUT_SECONDS` | `60` | Reconnect after this long without frames |
 | `BLUESKY_STATS_SECONDS` | `60` | Interval of the `bluesky stats` line |

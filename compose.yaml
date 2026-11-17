@@ -96,8 +96,12 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_URL: redis://redis:6379/0
-      # Jetstream connections here stall silently; ~240 events/s live, so 5 s of silence means a dead connection.
+      # Jetstream connections here stall silently; ~240 events/s live,
+      # so 5 s of silence means a dead connection.
       BLUESKY_IDLE_TIMEOUT_SECONDS: "5"
+      # Replaying after a drop here moves at about half the live rate and falls behind;
+      # read live, lose ~6 s per drop.
+      BLUESKY_RECONNECT: live
     restart: unless-stopped
 
   store:
