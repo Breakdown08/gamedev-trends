@@ -148,9 +148,10 @@ position was older than the limit. At process start the cursor from Redis is rep
 Choosing the mode (observed on this host on 2026-11-17, not a statement about Jetstream in general): a
 session lasts about 46 s, the data flows for about 41 s, and then the connection silently freezes. With
 `replay` only 20-27 s of the feed pass per session and `lag` grows (87.6, 114.3, 142.6, 164.4 s over four
-sessions) until the limit is hit and there is a gap; that is about 40% lost. The live stream without a
-cursor runs at full speed, so `live` loses about 6 s per reconnect (about 13%; an estimate, not yet
-measured). That is why compose sets `live`. To see `lag`:
+sessions) until the limit is hit and there is a gap. The live stream is not faster: the link from this
+host carries about 0.4 of real time even without a cursor (see Measured), and `live` lost 48% of the
+timeline over 30 minutes. Both modes lose about half here; compose sets `live` because its loss is
+bounded per session and the data stays current, with no growing `lag`. To see `lag`:
 `docker compose logs bluesky-collector | grep 'bluesky session'`.
 
 Back pressure: between the socket and Kafka there is a bounded queue (`BLUESKY_QUEUE_SIZE`). When it is
@@ -216,6 +217,18 @@ day, about 200 MB a year.
   (09:05–09:07): the collector logged `PublishError`, reconnected from the cursor and did not exit; the
   windows of the outage arrived after `docker compose start kafka` with the usual values (206–213/s). One
   real erasure (a deleted tagged post) left 0 observations of that URI.
+- 2026-11-17, incident: after a host reboot the collector kept replaying from a cursor of 2026-11-16
+  15:18 UTC; replay over this link is slower than real time, so it never caught up: 191 reconnects,
+  8 051 457 events read and dropped as stale. The cursor was deleted by hand; the data from 2026-11-16
+  15:18 to 2026-11-17 06:27 UTC is a gap. Fixed by resuming from the last event and by
+  `BLUESKY_MAX_REPLAY_SECONDS`.
+- 2026-11-17, 07:35–08:05 UTC, `BLUESKY_RECONNECT=live`: 33 reconnects, the `bluesky gap` lines sum to
+  848.4 s of 1757.5 s, 48% of the timeline lost
+  (`docker compose logs --since 30m bluesky-collector | grep 'reconnect=live'`).
+- 2026-11-17, 07:56–08:05 UTC, a bare client from the host, five alternating pairs of ~55 s connections:
+  with permessage-deflate (what `websockets` negotiates by default) 0.26–0.58 of real time, mean 0.39;
+  with `compress=true` (zstd with the Jetstream dictionary) 0.34–0.65, mean 0.42. Without any compression
+  (07:45 UTC, two connections) 0.13–0.15. zstd is within the spread of deflate, so the collector stays on deflate.
 
 ## Storage
 
