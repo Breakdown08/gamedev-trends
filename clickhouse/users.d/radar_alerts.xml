@@ -1,0 +1,13 @@
+<clickhouse>
+  <profiles>
+    <radar_alerts_readonly><readonly>1</readonly></radar_alerts_readonly>
+  </profiles>
+  <users>
+    <radar_alerts>
+      <password from_env="RADAR_ALERTS_CLICKHOUSE_PASSWORD"/>
+      <profile>radar_alerts_readonly</profile>
+      <networks><ip>::/0</ip></networks>
+      <grants><query>GRANT SELECT ON alerts_v1.*</query></grants>
+    </radar_alerts>
+  </users>
+</clickhouse>

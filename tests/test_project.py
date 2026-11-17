@@ -66,7 +66,9 @@ def test_gitignore_and_env_example() -> None:
     wanted: set[str] = {".venv/", "__pycache__/", ".env", ".mypy_cache/", ".pytest_cache/", ".ruff_cache/"}
     assert wanted <= lines
     assert (ROOT / ".env.example").read_text().strip() == (
-        "CLICKHOUSE_PASSWORD=change-me\nGRAFANA_ADMIN_PASSWORD=change-me"
+        "CLICKHOUSE_PASSWORD=change-me\n"
+        "GRAFANA_ADMIN_PASSWORD=change-me\n"
+        "RADAR_ALERTS_CLICKHOUSE_PASSWORD=change-me"
     )
 
 

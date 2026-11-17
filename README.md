@@ -2,7 +2,7 @@
 
 Trend radar for indie game developers.
 
-Status: Grafana dashboards, the measurement contract, the event bus (Kafka and in-memory), the Steam collector, the Bluesky collector and the ClickHouse storage exist. There is no API yet.
+Status: Grafana dashboards, the measurement contract, the event bus (Kafka and in-memory), the Steam collector, the Bluesky collector, the ClickHouse storage and the read-only SQL interface `alerts_v1` exist. There is no HTTP API yet.
 
 ## Development
 
@@ -290,3 +290,35 @@ excerpt, and an excerpt of an erased post that arrives later is dropped. Excerpt
 until the topic retention ends.
 
 Not covered: the HTTP API.
+
+## Read-only SQL interface `alerts_v1`
+
+A stable interface for neighbouring services (for example an alerting service), so that the internal
+schema of `radar.observations` can change. It is not the Kafka event contract `radar.observations.v1`.
+
+| View | Columns | One row is |
+|---|---|---|
+| `alerts_v1.steam_players` | `appid String`, `observed_at DateTime64(6, 'UTC')`, `players UInt32` | players online in a game at the moment of a measurement |
+| `alerts_v1.steam_chart` | `appid String`, `chart_day DateTime64(6, 'UTC')`, `rank UInt16` | place of a game in the chart for a day (`chart_day`) |
+| `alerts_v1.bluesky_tag_hourly` | `tag LowCardinality(String)`, `hour DateTime('UTC')`, `posts UInt64` | number of posts with a tag in an hour (the tag without the `tag_` prefix) |
+
+Duplicates are collapsed inside the views (`FINAL`); a reader does not need `FINAL`.
+
+Who creates it: `store` at start, with `CREATE ... IF NOT EXISTS`; the views have `SQL SECURITY DEFINER`, so
+the reader gets no rights on `radar.observations`. v1 never changes. An incompatible schema is a new
+database `alerts_v2` next to it, and v1 lives as long as someone uses it.
+
+The user `radar_alerts` is defined in `clickhouse/users.d/radar_alerts.xml`: profile `readonly=1`,
+`GRANT SELECT ON alerts_v1.*`. Its password is `RADAR_ALERTS_CLICKHOUSE_PASSWORD` in `.env`. It is
+required for every `docker compose` command (see `.env.example`). After changing the password run
+`docker compose up -d clickhouse`.
+
+Connecting from another compose stack: join the external docker network `gamedev-trends_default` and use
+`http://clickhouse:8123`. From the host: `http://localhost:8123`.
+
+```sql
+SELECT tag, hour, posts FROM alerts_v1.bluesky_tag_hourly WHERE hour >= now() - INTERVAL 1 DAY
+```
+
+To check the rights run the integration tests (ClickHouse from the compose stack):
+`uv run pytest -m integration`.

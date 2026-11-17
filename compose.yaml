@@ -50,8 +50,10 @@ services:
       CLICKHOUSE_USER: radar
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
       CLICKHOUSE_DB: radar
+      RADAR_ALERTS_CLICKHOUSE_PASSWORD: ${RADAR_ALERTS_CLICKHOUSE_PASSWORD:?set it in .env}
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/users.d/radar_alerts.xml:/etc/clickhouse-server/users.d/radar_alerts.xml:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
       interval: 5s

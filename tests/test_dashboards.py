@@ -196,7 +196,9 @@ def test_12_compose_static_with_grafana() -> None:
 
 def test_13_env_example() -> None:
     assert (ROOT / ".env.example").read_text().strip() == (
-        "CLICKHOUSE_PASSWORD=change-me\nGRAFANA_ADMIN_PASSWORD=change-me"
+        "CLICKHOUSE_PASSWORD=change-me\n"
+        "GRAFANA_ADMIN_PASSWORD=change-me\n"
+        "RADAR_ALERTS_CLICKHOUSE_PASSWORD=change-me"
     )
     lines: set[str] = {x.strip() for x in (ROOT / ".gitignore").read_text().splitlines()}
     assert ".env" in lines

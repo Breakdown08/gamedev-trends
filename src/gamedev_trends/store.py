@@ -369,11 +369,13 @@ class StoreConfig:
 async def _serve(config: StoreConfig) -> None:
     # Imported here: clickhouse.py imports Row and SinkError from this module.
     from gamedev_trends.clickhouse import (
+        CONTRACT_DATABASE,
         ClickHouseClient,
         ClickHouseErasureSink,
         ClickHouseError,
         ClickHouseExcerptSink,
         ClickHouseSink,
+        ensure_contract,
         ensure_erasures_schema,
         ensure_excerpts_schema,
         ensure_schema,
@@ -392,13 +394,14 @@ async def _serve(config: StoreConfig) -> None:
                 await ensure_schema(client, config.clickhouse_database)
                 await ensure_erasures_schema(client, config.clickhouse_database)
                 await ensure_excerpts_schema(client, config.clickhouse_database)
+                await ensure_contract(client, config.clickhouse_database)
                 break
             except ClickHouseError as exc:
                 attempt += 1
                 delay: float = retry_delay(attempt, config.retry_base_seconds, config.retry_max_seconds)
                 logger.warning("schema attempt %d failed: %s; retrying in %.1fs", attempt, exc, delay)
                 await asyncio.sleep(delay)
-        logger.info("schema ready: database=%s", config.clickhouse_database)
+        logger.info("schema ready: database=%s interface=%s", config.clickhouse_database, CONTRACT_DATABASE)
         subscriber = KafkaSubscriber(
             config.kafka_bootstrap_servers, config.group, [OBSERVATIONS_TOPIC, ERASURES_TOPIC]
         )

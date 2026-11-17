@@ -85,6 +85,43 @@ GROUP BY hour, source, entity_type, entity_id, metric""",
     ]
 
 
+CONTRACT_DATABASE: str = "alerts_v1"
+CONTRACT_VIEWS: tuple[str, ...] = ("steam_players", "steam_chart", "bluesky_tag_hourly")
+
+
+def contract_sql(source: str, contract: str = CONTRACT_DATABASE) -> list[str]:
+    """Four DDL statements of the read-only interface.
+
+    The database first, then the three views over source.observations.
+
+    Each name that does not match DATABASE_PATTERN raises ValueError (names are put into SQL as is).
+    """
+    name: str
+    for name in (source, contract):
+        if re.fullmatch(DATABASE_PATTERN, name) is None:
+            raise ValueError(f"database name must match {DATABASE_PATTERN}, got {name!r}")
+    head: str = "DEFINER = CURRENT_USER SQL SECURITY DEFINER AS"
+    return [
+        f"CREATE DATABASE IF NOT EXISTS {contract}",
+        f"""CREATE VIEW IF NOT EXISTS {contract}.steam_players
+{head}
+SELECT entity_id AS appid, observed_at, toUInt32(value) AS players
+FROM {source}.{OBSERVATIONS_TABLE} FINAL
+WHERE source = 'steam' AND entity_type = 'game' AND metric = 'players_current'""",
+        f"""CREATE VIEW IF NOT EXISTS {contract}.steam_chart
+{head}
+SELECT entity_id AS appid, observed_at AS chart_day, toUInt16(value) AS rank
+FROM {source}.{OBSERVATIONS_TABLE} FINAL
+WHERE source = 'steam' AND entity_type = 'game' AND metric = 'chart_rank'""",
+        f"""CREATE VIEW IF NOT EXISTS {contract}.bluesky_tag_hourly
+{head}
+SELECT substring(metric, 5) AS tag, toStartOfHour(assumeNotNull(window_start)) AS hour, count() AS posts
+FROM {source}.{OBSERVATIONS_TABLE} FINAL
+WHERE source = 'bluesky' AND entity_type = 'post' AND startsWith(metric, 'tag_') AND window_start IS NOT NULL
+GROUP BY tag, hour""",
+    ]
+
+
 class ClickHouseClient:
     def __init__(self, http: httpx.AsyncClient, *, url: str, user: str, password: str) -> None:
         """url without a trailing slash (one is stripped). Timeouts belong to the owner of http."""
@@ -156,6 +193,16 @@ async def ensure_schema(client: ClickHouseClient, database: str) -> None:
     """Run schema_sql(database) in order. Idempotent."""
     statement: str
     for statement in schema_sql(database):
+        await client.execute(statement)
+
+
+async def ensure_contract(client: ClickHouseClient, source: str, contract: str = CONTRACT_DATABASE) -> None:
+    """Run contract_sql(source, contract) in order through client.execute.
+
+    Idempotent; never replaces a view.
+    """
+    statement: str
+    for statement in contract_sql(source, contract):
         await client.execute(statement)
 
 
