@@ -119,10 +119,24 @@ storage applies them (see Storage). Known posts live in Redis, one sorted set pe
 time limit.
 
 Cursor: after each published window the `time_us` of the start of the next one is saved in Redis
-(`bluesky:cursor`, with AOF persistence in the `redis-data` volume). After a reconnect or restart the
-Jetstream is read again from the cursor and the open window is recomputed whole; the measurements get
-the same `event_id`, so no duplicates remain. The first window after a cold start (no cursor) is
-incomplete.
+(`bluesky:cursor`, with AOF persistence in the `redis-data` volume). It is the boundary for a restart of
+the process: the collector reads it once, and the Jetstream is read again from it with the open window
+recomputed whole; the measurements get the same `event_id`, so no duplicates remain. Inside a running
+process a reconnect continues from the `time_us` of the last accepted event instead, and the open window
+is kept. Events that arrive again on that boundary are crossed off (and counted in `late`), so nothing is
+counted twice or lost. The first window after a cold start (no cursor) is incomplete.
+
+Interruptions: the Jetstream drops a connection about once a minute, and reading again from a cursor does
+not catch up with the live stream. If the cursor (or the last accepted event) is older than
+`BLUESKY_MAX_REPLAY_SECONDS` (never less than twice the window), the collector does not replay the feed:
+it reads the live stream and logs one line
+`bluesky gap: from=<time_us> to=<time_us> seconds=<n> max_replay=<n>; reading the live stream`. The data
+of that interval is missing, and the window at the edge of the gap is incomplete. Every session logs
+`bluesky session: endpoint=... cursor=... mode=<start|resume|live> lag=<seconds|none>`: `start` is the
+first session after a restart, `resume` continues from the last event, `live` has no cursor; `lag` is how
+far behind the cursor is. Limitation: every Jetstream instance sets `time_us` itself, so if a session
+without a single frame switched to another endpoint, the position from the previous one is approximate
+there, and a few events may be lost or repeated at the boundary.
 
 Back pressure: between the socket and Kafka there is a bounded queue (`BLUESKY_QUEUE_SIZE`). When it is
 full the socket is not read. A lost connection or `BLUESKY_IDLE_TIMEOUT_SECONDS` without frames starts a
@@ -166,6 +180,7 @@ An invalid value makes the process exit with code 2.
 | `BLUESKY_TAGS` | `gamedev,indiedev,indiegame,godot,pixelart,screenshotsaturday,mobilegame` | Tag whitelist, `[a-z][a-z0-9_]*`, up to 28 characters |
 | `BLUESKY_WINDOW_SECONDS` | `60` | Window length, at least 10 and a divisor of 3600 |
 | `BLUESKY_TRACK_HOURS` | `24` | How long likes and reposts of a post count, 1 to 168 |
+| `BLUESKY_MAX_REPLAY_SECONDS` | `300` | Longest replay from a cursor (at least twice the window); an older cursor means reading live and logging the gap |
 | `BLUESKY_QUEUE_SIZE` | `10000` | Frames between the socket and the handler, 1 to 1000000 |
 | `BLUESKY_IDLE_TIMEOUT_SECONDS` | `60` | Reconnect after this long without frames |
 | `BLUESKY_STATS_SECONDS` | `60` | Interval of the `bluesky stats` line |

@@ -9,6 +9,7 @@ import re
 import signal
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field, replace
@@ -215,6 +216,7 @@ class _Window:
 
 class BlueskyCollector:
     stats: Stats
+    _position_us: int | None = None
 
     def __init__(
         self,
@@ -248,15 +250,37 @@ class BlueskyCollector:
         self._track_us: int = track_hours * 3600 * 10**6
         self._resume_us: int | None = None
         self._window: _Window | None = None
+        self._boundary: Counter[JetstreamEvent] = Counter()
+        self._skip: Counter[JetstreamEvent] = Counter()
         self.stats: Stats = Stats()
 
     @property
     def window_start_us(self) -> int | None:
         return None if self._window is None else self._window.start_us
 
+    @property
+    def position_us(self) -> int | None:
+        return self._position_us
+
+    def resume(self, *, live: bool = False) -> int | None:
+        """Reconnect inside the process: keep the window and continue from the last accepted event."""
+        position: int | None = self._position_us
+        if position is None:
+            raise RuntimeError("resume() needs at least one accepted event")
+        if live:
+            self._resume_us = None
+            self._skip = Counter()
+            return None
+        self._resume_us = position
+        self._skip = Counter(self._boundary)
+        return position
+
     def start(self, resume_us: int | None) -> None:
         self._window = None
         self._resume_us = resume_us
+        self._position_us: int | None = None
+        self._boundary = Counter()
+        self._skip = Counter()
 
     async def handle(self, events: Sequence[JetstreamEvent | None]) -> None:
         event: JetstreamEvent | None
@@ -271,6 +295,10 @@ class BlueskyCollector:
             ):
                 self.stats.late += 1
                 continue
+            if self._resume_us == event.time_us and self._skip[event] > 0:
+                self._skip[event] -= 1
+                self.stats.late += 1
+                continue
             if window is not None and event.time_us >= window.start_us + self._window_us:
                 await self._close(window, event.time_us // self._window_us * self._window_us)
                 window = None
@@ -278,6 +306,12 @@ class BlueskyCollector:
                 window = _Window(start_us=event.time_us // self._window_us * self._window_us)
                 self._window = window
             await self._apply(window, event)
+            position: int | None = self._position_us
+            if position is None or event.time_us > position:
+                self._position_us: int | None = event.time_us
+                self._boundary = Counter({event: 1})
+            elif event.time_us == position:
+                self._boundary[event] += 1
 
     async def _apply(self, window: _Window, event: JetstreamEvent) -> None:
         window.events += 1
@@ -524,31 +558,70 @@ async def run_forever(
     stats_seconds: float = 60.0,
     backoff_base: float = 1.0,
     backoff_max: float = 30.0,
+    max_replay_seconds: int | None = None,
     sleep: Sleep = asyncio.sleep,
     monotonic: Callable[[], float] = time.monotonic,
+    clock: Callable[[], float] = time.time,
     max_sessions: int | None = None,
 ) -> None:
     failures: int = 0
     sessions: int = 0
     i: int = 0
+    loaded: bool = False
+    initial: int | None = None
+
+    def too_old(from_us: int, now_us: int) -> bool:
+        return max_replay_seconds is not None and now_us - from_us > max_replay_seconds * 1_000_000
+
+    def log_gap(from_us: int, now_us: int) -> None:
+        logger.warning(
+            "bluesky gap: from=%d to=%d seconds=%d max_replay=%s; reading the live stream",
+            from_us,
+            now_us,
+            (now_us - from_us) // 1_000_000,
+            max_replay_seconds,
+        )
+
     while True:
         handled: int = 0
-        resume: int | None = None
-        loaded: bool = True
-        try:
-            resume = await cursor.load()
-        except Exception:
-            loaded = False
-            logger.exception("loading the cursor failed")
+        if not loaded:
+            try:
+                initial = await cursor.load()
+                loaded = True
+            except Exception:
+                logger.exception("loading the cursor failed")
         if loaded:
-            collector.start(resume)
+            now_us: int = round(clock() * 1_000_000)
+            url_cursor: int | None
+            mode: str
+            position: int | None = collector.position_us
+            if position is None:
+                if initial is not None and too_old(initial, now_us):
+                    log_gap(initial, now_us)
+                    initial = None
+                collector.start(initial)
+                url_cursor = initial
+                mode = "live" if initial is None else "start"
+            elif too_old(position, now_us):
+                log_gap(position, now_us)
+                collector.resume(live=True)
+                url_cursor = None
+                mode = "live"
+            else:
+                url_cursor = collector.resume()
+                mode = "resume"
             endpoint: str = endpoints[i]
+            lag: str = "none" if url_cursor is None else f"{(now_us - url_cursor) / 1e6:.1f}"
             logger.info(
-                "bluesky session: endpoint=%s cursor=%s", endpoint, "none" if resume is None else resume
+                "bluesky session: endpoint=%s cursor=%s mode=%s lag=%s",
+                endpoint,
+                "none" if url_cursor is None else url_cursor,
+                mode,
+                lag,
             )
             handled = await run_session(
                 connect,
-                subscribe_url(endpoint, JETSTREAM_COLLECTIONS, resume),
+                subscribe_url(endpoint, JETSTREAM_COLLECTIONS, url_cursor),
                 collector,
                 queue_size=queue_size,
                 idle_timeout=idle_timeout,
@@ -580,6 +653,11 @@ class BlueskyConfig:
     stats_seconds: float = 60.0
     backoff_base_seconds: float = 1.0
     backoff_max_seconds: float = 30.0
+    max_replay_seconds: int = 300
+
+    @property
+    def replay_limit_seconds(self) -> int:
+        return max(self.max_replay_seconds, 2 * self.window_seconds)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> BlueskyConfig:
@@ -614,6 +692,9 @@ class BlueskyConfig:
         track: int = _int(env, "BLUESKY_TRACK_HOURS", d.track_hours)
         if not 1 <= track <= 168:
             raise ValueError(f"BLUESKY_TRACK_HOURS: must be from 1 to 168, got {track}")
+        max_replay: int = _int(env, "BLUESKY_MAX_REPLAY_SECONDS", d.max_replay_seconds)
+        if max_replay < 1:
+            raise ValueError(f"BLUESKY_MAX_REPLAY_SECONDS: must be >= 1, got {max_replay}")
         queue: int = _int(env, "BLUESKY_QUEUE_SIZE", d.queue_size)
         if not 1 <= queue <= 1_000_000:
             raise ValueError(f"BLUESKY_QUEUE_SIZE: must be from 1 to 1000000, got {queue}")
@@ -641,6 +722,7 @@ class BlueskyConfig:
             stats_seconds=stats,
             backoff_base_seconds=base,
             backoff_max_seconds=cap,
+            max_replay_seconds=max_replay,
         )
 
 
@@ -705,6 +787,7 @@ async def _serve(config: BlueskyConfig, duration: float | None) -> None:
             track_hours=config.track_hours,
         )
         stats = collector.stats
+        logger.info("bluesky replay limit: %ds", config.replay_limit_seconds)
         try:
             async with asyncio.timeout(duration):
                 await run_forever(
@@ -717,6 +800,7 @@ async def _serve(config: BlueskyConfig, duration: float | None) -> None:
                     stats_seconds=config.stats_seconds,
                     backoff_base=config.backoff_base_seconds,
                     backoff_max=config.backoff_max_seconds,
+                    max_replay_seconds=config.replay_limit_seconds,
                 )
         except TimeoutError:
             if duration is None:
