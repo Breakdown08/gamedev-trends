@@ -2,17 +2,17 @@
 
 Trend radar for indie game developers.
 
-Status: Grafana dashboards, the measurement contract, the event bus (Kafka and in-memory), the Steam collector, the Bluesky collector, the ClickHouse storage and the read-only SQL interface `alerts_v1` exist. There is no HTTP API yet.
+Status: Grafana dashboards, the Steam game catalog in MongoDB, the measurement contract, the event bus (Kafka and in-memory), the Steam collector, the Bluesky collector, the ClickHouse storage and the read-only SQL interface `alerts_v1` exist. There is no HTTP API yet.
 
 ## Development
 
 ```bash
 uv sync
 cp .env.example .env
-docker compose up -d --wait   # Kafka, ClickHouse, Redis, Grafana
+docker compose up -d --wait   # Kafka, ClickHouse, Redis, MongoDB, Grafana
 uv run pytest                 # unit tests, no Docker needed
 uv run pytest -m integration  # needs the compose stack (Kafka on localhost:9092, Redis on localhost:6379,
-                              # ClickHouse on localhost:8123)
+                              # ClickHouse on localhost:8123, MongoDB on localhost:27017)
 docker compose down
 ```
 
@@ -322,3 +322,85 @@ SELECT tag, hour, posts FROM alerts_v1.bluesky_tag_hourly WHERE hour >= now() - 
 
 To check the rights run the integration tests (ClickHouse from the compose stack):
 `uv run pytest -m integration`.
+
+## Game catalog (MongoDB)
+
+The radar knows games only by `appid`. The catalog adds names, tags, developers, publishers, price and
+release date in MongoDB, so questions of an indie developer can be asked: how crowded a niche is, how many
+games in it are self-published, which tags the growing games have.
+
+```bash
+set -a; . ./.env; set +a
+uv run python -m gamedev_trends.catalog refresh      # load the radar's appids from Steam, upsert by appid
+uv run python -m gamedev_trends.catalog niche Indie  # games with the tag, average tag weight
+uv run python -m gamedev_trends.catalog indie Indie  # share of games where developers == publishers
+uv run python -m gamedev_trends.catalog growing      # tags of games whose online grew week over week
+```
+
+`refresh` takes the numeric `appid`s from ClickHouse (`radar.observations`, `source = 'steam'`), asks Steam for
+them in chunks of 50 (`IStoreBrowseService/GetItems`, no key) and the tag and category dictionaries
+(`IStoreService/GetTagList`, `IStoreBrowseService/GetStoreCategories`), and upserts into `radar.games`.
+It is idempotent: a second run changes `updated_at` and leaves the number of documents as it is.
+`GetItems` is undocumented: it is not in the official Steam Web API documentation, it may change without
+notice. Store prices are for the US store, language is English.
+
+Configuration (environment): `MONGODB_URL` (default `mongodb://localhost:27017`), `MONGODB_DATABASE`
+(`radar`), `STEAM_API_BASE`, `CATALOG_HTTP_TIMEOUT_SECONDS`, `CLICKHOUSE_URL`, `CLICKHOUSE_USER`,
+`CLICKHOUSE_PASSWORD` (required for `refresh` and `growing`), `CLICKHOUSE_DATABASE`. MongoDB runs without
+authentication, its port is open only on localhost, like Redis.
+
+### Document
+
+One document per `appid` in `games`: `appid`, `name`, `steam_type` (0 is a game; Blender, OBS and DLC have
+other values and stay in the collection, aggregations take only `steam_type: 0`), `tags` (`tagid`, `name`,
+`weight`; at most 20, Steam gives no more; sorted by `weight` descending), `categories` (`categoryid`,
+`name`), `developers`, `publishers`, `is_free`, `price_usd_cents`, `discount_pct`, `release_date`,
+`coming_soon`, `early_access`, `updated_at` (every run), `created_at` (the first insert only).
+The schema is checked by the server: a `$jsonSchema` validator (`validationAction: error`) on the
+collection, set by `ensure_schema` on every start; it mirrors the pydantic model `Game`.
+
+### Indexes
+
+| Index | Key | Serves |
+|---|---|---|
+| `appid_unique` | `{appid: 1}`, unique | the filter of every upsert and `get(appid)`; no duplicates even for two parallel runs |
+| `tags_name` | `{"tags.name": 1}`, multikey | the first `$match` of `niche` and `indie` |
+
+`growing` scans the whole collection (`COLLSCAN`): it needs all games, and with about a hundred documents an
+index is not needed.
+
+### Aggregations
+
+1. `niche TAG`: `$match` (tag, `steam_type: 0`) -> `$unwind tags` -> `$match` -> `$group` count and `$avg` of
+   the weight.
+2. `indie TAG`: `$match` (also non-empty developers and publishers) -> `$setEquals` of developers and
+   publishers -> `$group`. A game is self-published when the two sets of names are equal. Known limit: legal
+   entities of one studio count as a publisher ("Paradox Development Studio" / "Paradox Interactive").
+3. `growing`: `growing_games` (ClickHouse, average `players_current` of the last 24 hours against the same
+   window a week earlier, growth >= 20 %, at least 12 samples in each window) -> `appid`s -> `$unwind tags`
+   -> `$group` growing and total per tag. The signal is weak: these are tags of games from the Steam
+   most-played chart, mostly big games, not indie ones; the online data starts on 2026-11-12, so the week over
+   week comparison works from 2026-11-20 only.
+
+### Index proof (`explain`)
+
+```bash
+docker compose exec mongo mongosh radar --quiet --eval \
+  'db.games.find({"tags.name":"Indie"}).explain().queryPlanner.winningPlan'
+```
+
+The plan contains `IXSCAN` on `tags_name`. `uv run pytest -m integration` checks the plan of both
+aggregations. In MongoDB 8.0 an equality lookup on a unique index (`find({appid: X})`) is planned as
+`EXPRESS_IXSCAN` on `appid_unique`, not as `IXSCAN`.
+
+### Measured (2026-11-18)
+
+- `uv run python -m gamedev_trends.catalog refresh`, twice: `requested=105 games=104 inserted=104 updated=0 unavailable=1`,
+  then `inserted=0 updated=104`; `db.games.countDocuments()` is 104 after both runs.
+- `niche Indie`: 24 games; `indie Indie`: 16 of 24 self-published (0.67).
+- `explain` above: `FETCH` ← `IXSCAN` on `tags_name`, `isMultiKey: true`, bounds `["Indie", "Indie"]`.
+- `growing`: 0 games, as expected — the radar has less than a week of history.
+- `docker compose rm -sf mongo && docker compose up -d --wait mongo`: 104 documents survive on the volume.
+
+Not covered: names in Grafana, history of prices and tags, a schedule (the catalog is updated by the command
+only), a full list of tags (Steam gives 20).

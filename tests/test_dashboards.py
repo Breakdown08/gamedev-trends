@@ -186,6 +186,7 @@ def test_12_compose_static_with_grafana() -> None:
     assert images == {
         "apache/kafka:4.3.2",
         "clickhouse/clickhouse-server:26.8.36.3",
+        "mongo:8.0.38",
         "redis:8.8.4-alpine",
         grafana_image.group(1),
     }

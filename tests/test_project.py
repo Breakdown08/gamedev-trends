@@ -94,6 +94,7 @@ def test_compose_static() -> None:
     assert images == {
         "apache/kafka:4.3.2",
         "clickhouse/clickhouse-server:26.8.36.3",
+        "mongo:8.0.38",
         "redis:8.8.4-alpine",
         grafana[0],
     }

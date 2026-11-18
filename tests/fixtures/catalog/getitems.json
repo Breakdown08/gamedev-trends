@@ -1,0 +1,1029 @@
+{
+  "response": {
+    "store_items": [
+      {
+        "item_type": 0,
+        "id": 413150,
+        "success": 1,
+        "visible": true,
+        "name": "Stardew Valley",
+        "store_url_path": "app/413150/Stardew_Valley",
+        "store_url_slug": "Stardew_Valley",
+        "appid": 413150,
+        "type": 0,
+        "tagids": [
+          87918,
+          3964,
+          3859,
+          10235,
+          122,
+          1654,
+          599,
+          22602,
+          3810,
+          1702,
+          492,
+          1643,
+          1695,
+          597,
+          4182,
+          3871,
+          9551,
+          4726,
+          1756,
+          15564
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            2,
+            1,
+            9,
+            38,
+            48,
+            39,
+            24
+          ],
+          "feature_categoryids": [
+            22,
+            29,
+            23,
+            41,
+            42,
+            44,
+            62
+          ],
+          "controller_categoryids": [
+            28
+          ]
+        },
+        "basic_info": {
+          "short_description": "You've inherited your grandfather's old farm plot in Stardew Valley. Armed with hand-me-down tools and a few coins, you set out to begin your new life. Can you learn to live off the land and turn these overgrown fields into a thriving home?",
+          "publishers": [
+            {
+              "name": "ConcernedApe",
+              "creator_clan_account_id": 32938395
+            }
+          ],
+          "developers": [
+            {
+              "name": "ConcernedApe",
+              "creator_clan_account_id": 32938395
+            }
+          ]
+        },
+        "tags": [
+          {
+            "tagid": 87918,
+            "weight": 859
+          },
+          {
+            "tagid": 3964,
+            "weight": 788
+          },
+          {
+            "tagid": 3859,
+            "weight": 780
+          },
+          {
+            "tagid": 10235,
+            "weight": 768
+          },
+          {
+            "tagid": 122,
+            "weight": 684
+          },
+          {
+            "tagid": 1654,
+            "weight": 684
+          },
+          {
+            "tagid": 599,
+            "weight": 554
+          },
+          {
+            "tagid": 22602,
+            "weight": 547
+          },
+          {
+            "tagid": 3810,
+            "weight": 472
+          },
+          {
+            "tagid": 1702,
+            "weight": 471
+          },
+          {
+            "tagid": 492,
+            "weight": 470
+          },
+          {
+            "tagid": 1643,
+            "weight": 386
+          },
+          {
+            "tagid": 1695,
+            "weight": 366
+          },
+          {
+            "tagid": 597,
+            "weight": 364
+          },
+          {
+            "tagid": 4182,
+            "weight": 355
+          },
+          {
+            "tagid": 3871,
+            "weight": 317
+          },
+          {
+            "tagid": 9551,
+            "weight": 317
+          },
+          {
+            "tagid": 4726,
+            "weight": 300
+          },
+          {
+            "tagid": 1756,
+            "weight": 265
+          },
+          {
+            "tagid": 15564,
+            "weight": 241
+          }
+        ],
+        "release": {
+          "steam_release_date": 1456509578
+        },
+        "best_purchase_option": {
+          "packageid": 82712,
+          "purchase_option_name": "Stardew Valley",
+          "final_price_in_cents": "1499",
+          "formatted_final_price": "$14.99",
+          "user_can_purchase_as_gift": true,
+          "hide_discount_pct_for_compliance": false,
+          "included_game_count": 1,
+          "must_purchase_as_set": false,
+          "package_group": "default",
+          "price_cannot_be_displayed_as_discount": false
+        }
+      },
+      {
+        "item_type": 0,
+        "id": 730,
+        "success": 1,
+        "visible": true,
+        "name": "Counter-Strike 2",
+        "store_url_path": "app/730/CounterStrike_2",
+        "store_url_slug": "CounterStrike_2",
+        "appid": 730,
+        "type": 0,
+        "is_free": true,
+        "related_items": {
+          "provides_engine_appid": [
+            730
+          ]
+        },
+        "content_descriptorids": [
+          2,
+          5
+        ],
+        "tagids": [
+          1663,
+          1774,
+          3859,
+          3878,
+          19,
+          5711,
+          5055,
+          1708,
+          3839,
+          1775,
+          3843,
+          1685,
+          9,
+          4168,
+          1678,
+          4202,
+          4026,
+          4175,
+          1734,
+          1669
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            1,
+            27
+          ],
+          "feature_categoryids": [
+            29,
+            30,
+            51,
+            35,
+            64,
+            66,
+            67,
+            68,
+            69,
+            70,
+            74,
+            8,
+            15,
+            41,
+            42,
+            43,
+            63
+          ]
+        },
+        "basic_info": {
+          "short_description": "For over two decades, Counter-Strike has offered an elite competitive experience, one shaped by millions of players from across the globe. And now the next chapter in the CS story is about to begin. This is Counter-Strike 2.",
+          "publishers": [
+            {
+              "name": "Valve",
+              "creator_clan_account_id": 4
+            }
+          ],
+          "developers": [
+            {
+              "name": "Valve",
+              "creator_clan_account_id": 4
+            }
+          ]
+        },
+        "tags": [
+          {
+            "tagid": 1663,
+            "weight": 1161
+          },
+          {
+            "tagid": 1774,
+            "weight": 834
+          },
+          {
+            "tagid": 3859,
+            "weight": 796
+          },
+          {
+            "tagid": 3878,
+            "weight": 681
+          },
+          {
+            "tagid": 19,
+            "weight": 603
+          },
+          {
+            "tagid": 5711,
+            "weight": 589
+          },
+          {
+            "tagid": 5055,
+            "weight": 555
+          },
+          {
+            "tagid": 1708,
+            "weight": 526
+          },
+          {
+            "tagid": 3839,
+            "weight": 501
+          },
+          {
+            "tagid": 1775,
+            "weight": 439
+          },
+          {
+            "tagid": 3843,
+            "weight": 431
+          },
+          {
+            "tagid": 1685,
+            "weight": 384
+          },
+          {
+            "tagid": 9,
+            "weight": 382
+          },
+          {
+            "tagid": 4168,
+            "weight": 364
+          },
+          {
+            "tagid": 1678,
+            "weight": 355
+          },
+          {
+            "tagid": 4202,
+            "weight": 330
+          },
+          {
+            "tagid": 4026,
+            "weight": 329
+          },
+          {
+            "tagid": 4175,
+            "weight": 323
+          },
+          {
+            "tagid": 1734,
+            "weight": 321
+          },
+          {
+            "tagid": 1669,
+            "weight": 87
+          }
+        ],
+        "release": {
+          "steam_release_date": 1345568400
+        }
+      },
+      {
+        "item_type": 0,
+        "id": 227300,
+        "success": 1,
+        "visible": true,
+        "name": "Euro Truck Simulator 2",
+        "store_url_path": "app/227300/Euro_Truck_Simulator_2",
+        "store_url_slug": "Euro_Truck_Simulator_2",
+        "appid": 227300,
+        "type": 0,
+        "related_items": {
+          "demo_appid": [
+            231120
+          ],
+          "demos": [
+            {
+              "appid": 231120,
+              "show_above_purchase": true
+            }
+          ]
+        },
+        "tagids": [
+          1644,
+          10383,
+          599,
+          1695,
+          1100687,
+          4175,
+          1669,
+          1654,
+          3834,
+          4695,
+          12472,
+          9204,
+          4166,
+          3859,
+          7481,
+          5350,
+          1697,
+          21,
+          597,
+          492
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            2,
+            1,
+            9,
+            38
+          ],
+          "feature_categoryids": [
+            22,
+            29,
+            30,
+            67,
+            68,
+            69,
+            70,
+            74,
+            75,
+            78,
+            79,
+            23,
+            17,
+            41,
+            42,
+            44,
+            62
+          ],
+          "controller_categoryids": [
+            59,
+            18
+          ]
+        },
+        "basic_info": {
+          "short_description": "Travel across Europe as king of the road, a trucker who delivers important cargo across impressive distances! With dozens of cities to explore, your endurance, skill and speed will all be pushed to their limits.",
+          "publishers": [
+            {
+              "name": "SCS Software",
+              "creator_clan_account_id": 4036972
+            }
+          ],
+          "developers": [
+            {
+              "name": "SCS Software",
+              "creator_clan_account_id": 4036972
+            }
+          ],
+          "capsule_headline": "#msg_new_content_now_available",
+          "featured_creator_home_clan_account_ids": [
+            4036972
+          ],
+          "first_franchise_clan_account_id": 4036972
+        },
+        "tags": [
+          {
+            "tagid": 1644,
+            "weight": 695
+          },
+          {
+            "tagid": 10383,
+            "weight": 674
+          },
+          {
+            "tagid": 599,
+            "weight": 672
+          },
+          {
+            "tagid": 1695,
+            "weight": 669
+          },
+          {
+            "tagid": 1100687,
+            "weight": 658
+          },
+          {
+            "tagid": 4175,
+            "weight": 657
+          },
+          {
+            "tagid": 1669,
+            "weight": 648
+          },
+          {
+            "tagid": 1654,
+            "weight": 643
+          },
+          {
+            "tagid": 3834,
+            "weight": 632
+          },
+          {
+            "tagid": 4695,
+            "weight": 629
+          },
+          {
+            "tagid": 12472,
+            "weight": 627
+          },
+          {
+            "tagid": 9204,
+            "weight": 627
+          },
+          {
+            "tagid": 4166,
+            "weight": 624
+          },
+          {
+            "tagid": 3859,
+            "weight": 295
+          },
+          {
+            "tagid": 7481,
+            "weight": 216
+          },
+          {
+            "tagid": 5350,
+            "weight": 207
+          },
+          {
+            "tagid": 1697,
+            "weight": 206
+          },
+          {
+            "tagid": 21,
+            "weight": 205
+          },
+          {
+            "tagid": 597,
+            "weight": 204
+          },
+          {
+            "tagid": 492,
+            "weight": 203
+          }
+        ],
+        "release": {
+          "steam_release_date": 1350061200,
+          "original_release_date": 1350543600
+        },
+        "best_purchase_option": {
+          "packageid": 19007,
+          "purchase_option_name": "Euro Truck Simulator 2",
+          "final_price_in_cents": "499",
+          "original_price_in_cents": "1999",
+          "formatted_final_price": "$4.99",
+          "formatted_original_price": "$19.99",
+          "discount_pct": 75,
+          "active_discounts": [
+            {
+              "discount_amount": "1500",
+              "discount_description": "#discount_desc_preset_special",
+              "discount_end_date": 1795539600
+            }
+          ],
+          "user_can_purchase_as_gift": true,
+          "hide_discount_pct_for_compliance": false,
+          "included_game_count": 1,
+          "must_purchase_as_set": false,
+          "package_group": "default",
+          "price_cannot_be_displayed_as_discount": false
+        }
+      },
+      {
+        "item_type": 0,
+        "id": 1422450,
+        "success": 1,
+        "visible": true,
+        "name": "Deadlock",
+        "store_url_path": "app/1422450/Deadlock",
+        "store_url_slug": "Deadlock",
+        "appid": 1422450,
+        "type": 0,
+        "tagids": [
+          1718,
+          3814,
+          3859,
+          620519,
+          5711,
+          3878,
+          1774,
+          1697,
+          1775,
+          19,
+          493,
+          113,
+          9,
+          3843,
+          1708,
+          1685,
+          4136,
+          4726,
+          12095,
+          1667
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            1
+          ]
+        },
+        "basic_info": {
+          "short_description": "Deadlock is a multiplayer game in early development.",
+          "publishers": [
+            {
+              "name": "Valve",
+              "creator_clan_account_id": 4
+            }
+          ],
+          "developers": [
+            {
+              "name": "Valve",
+              "creator_clan_account_id": 4
+            }
+          ]
+        },
+        "tags": [
+          {
+            "tagid": 1718,
+            "weight": 1110
+          },
+          {
+            "tagid": 3814,
+            "weight": 957
+          },
+          {
+            "tagid": 3859,
+            "weight": 931
+          },
+          {
+            "tagid": 620519,
+            "weight": 885
+          },
+          {
+            "tagid": 5711,
+            "weight": 868
+          },
+          {
+            "tagid": 3878,
+            "weight": 724
+          },
+          {
+            "tagid": 1774,
+            "weight": 564
+          },
+          {
+            "tagid": 1697,
+            "weight": 534
+          },
+          {
+            "tagid": 1775,
+            "weight": 478
+          },
+          {
+            "tagid": 19,
+            "weight": 477
+          },
+          {
+            "tagid": 493,
+            "weight": 454
+          },
+          {
+            "tagid": 113,
+            "weight": 447
+          },
+          {
+            "tagid": 9,
+            "weight": 362
+          },
+          {
+            "tagid": 3843,
+            "weight": 342
+          },
+          {
+            "tagid": 1708,
+            "weight": 285
+          },
+          {
+            "tagid": 1685,
+            "weight": 182
+          },
+          {
+            "tagid": 4136,
+            "weight": 161
+          },
+          {
+            "tagid": 4726,
+            "weight": 90
+          },
+          {
+            "tagid": 12095,
+            "weight": 84
+          },
+          {
+            "tagid": 1667,
+            "weight": 58
+          }
+        ],
+        "release": {
+          "is_coming_soon": true,
+          "custom_release_date_message": "To be announced",
+          "coming_soon_display": "text_tba"
+        },
+        "is_coming_soon": true
+      },
+      {
+        "item_type": 0,
+        "id": 1281930,
+        "success": 1,
+        "visible": true,
+        "name": "tModLoader",
+        "store_url_path": "app/1281930/tModLoader",
+        "store_url_slug": "tModLoader",
+        "appid": 1281930,
+        "type": 2,
+        "is_free": true,
+        "related_items": {
+          "parent_appid": 105600
+        },
+        "tagids": [
+          21,
+          113,
+          19,
+          492,
+          122,
+          5348,
+          3810,
+          1669,
+          3859,
+          3871,
+          3964,
+          1643,
+          1662,
+          3843,
+          4182,
+          1756,
+          4026,
+          1685,
+          4711,
+          1100689
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            2,
+            1,
+            49,
+            36,
+            9,
+            38
+          ],
+          "feature_categoryids": [
+            30,
+            23,
+            62
+          ]
+        },
+        "basic_info": {
+          "short_description": "Dig, Fight, and Build your way through the world of player-created mods on Terraria with tModLoader - this DLC makes modding Terraria a reality!",
+          "publishers": [
+            {
+              "name": "Re-Logic"
+            },
+            {
+              "name": "TML Team"
+            }
+          ],
+          "developers": [
+            {
+              "name": "TML Team"
+            }
+          ]
+        },
+        "tags": [
+          {
+            "tagid": 21,
+            "weight": 1092
+          },
+          {
+            "tagid": 113,
+            "weight": 951
+          },
+          {
+            "tagid": 19,
+            "weight": 928
+          },
+          {
+            "tagid": 492,
+            "weight": 897
+          },
+          {
+            "tagid": 122,
+            "weight": 880
+          },
+          {
+            "tagid": 5348,
+            "weight": 756
+          },
+          {
+            "tagid": 3810,
+            "weight": 492
+          },
+          {
+            "tagid": 1669,
+            "weight": 464
+          },
+          {
+            "tagid": 3859,
+            "weight": 453
+          },
+          {
+            "tagid": 3871,
+            "weight": 393
+          },
+          {
+            "tagid": 3964,
+            "weight": 368
+          },
+          {
+            "tagid": 1643,
+            "weight": 332
+          },
+          {
+            "tagid": 1662,
+            "weight": 302
+          },
+          {
+            "tagid": 3843,
+            "weight": 266
+          },
+          {
+            "tagid": 4182,
+            "weight": 247
+          },
+          {
+            "tagid": 1756,
+            "weight": 237
+          },
+          {
+            "tagid": 4026,
+            "weight": 235
+          },
+          {
+            "tagid": 1685,
+            "weight": 234
+          },
+          {
+            "tagid": 4711,
+            "weight": 232
+          },
+          {
+            "tagid": 1100689,
+            "weight": 230
+          }
+        ],
+        "release": {
+          "steam_release_date": 1589648363
+        }
+      },
+      {
+        "item_type": 0,
+        "id": 2379780,
+        "success": 1,
+        "visible": true,
+        "name": "Balatro",
+        "store_url_path": "app/2379780/Balatro",
+        "store_url_slug": "Balatro",
+        "appid": 2379780,
+        "type": 0,
+        "tagids": [
+          1666,
+          1716,
+          1091588,
+          32322,
+          4182,
+          3964,
+          9,
+          4711,
+          3959,
+          492,
+          1677,
+          597,
+          791774,
+          4026,
+          3871,
+          6426,
+          1654,
+          1741,
+          1773,
+          16250
+        ],
+        "categories": {
+          "supported_player_categoryids": [
+            2
+          ],
+          "feature_categoryids": [
+            22,
+            29,
+            66,
+            68,
+            74,
+            76,
+            77,
+            23,
+            62
+          ],
+          "controller_categoryids": [
+            28,
+            57,
+            58
+          ]
+        },
+        "basic_info": {
+          "short_description": "The poker roguelike. Balatro is a hypnotically satisfying deckbuilder where you play illegal poker hands, discover game-changing jokers, and trigger adrenaline-pumping, outrageous combos.",
+          "publishers": [
+            {
+              "name": "Playstack",
+              "creator_clan_account_id": 39826181
+            }
+          ],
+          "developers": [
+            {
+              "name": "LocalThunk"
+            }
+          ],
+          "featured_creator_home_clan_account_ids": [
+            39826181
+          ],
+          "first_franchise_clan_account_id": 39826181
+        },
+        "tags": [
+          {
+            "tagid": 1666,
+            "weight": 828
+          },
+          {
+            "tagid": 1716,
+            "weight": 770
+          },
+          {
+            "tagid": 1091588,
+            "weight": 730
+          },
+          {
+            "tagid": 32322,
+            "weight": 654
+          },
+          {
+            "tagid": 4182,
+            "weight": 640
+          },
+          {
+            "tagid": 3964,
+            "weight": 585
+          },
+          {
+            "tagid": 9,
+            "weight": 581
+          },
+          {
+            "tagid": 4711,
+            "weight": 567
+          },
+          {
+            "tagid": 3959,
+            "weight": 519
+          },
+          {
+            "tagid": 492,
+            "weight": 463
+          },
+          {
+            "tagid": 1677,
+            "weight": 430
+          },
+          {
+            "tagid": 597,
+            "weight": 421
+          },
+          {
+            "tagid": 791774,
+            "weight": 387
+          },
+          {
+            "tagid": 4026,
+            "weight": 382
+          },
+          {
+            "tagid": 3871,
+            "weight": 377
+          },
+          {
+            "tagid": 6426,
+            "weight": 365
+          },
+          {
+            "tagid": 1654,
+            "weight": 352
+          },
+          {
+            "tagid": 1741,
+            "weight": 328
+          },
+          {
+            "tagid": 1773,
+            "weight": 319
+          },
+          {
+            "tagid": 16250,
+            "weight": 293
+          }
+        ],
+        "release": {
+          "steam_release_date": 1708440403
+        },
+        "best_purchase_option": {
+          "packageid": 856021,
+          "purchase_option_name": "Balatro",
+          "final_price_in_cents": "1499",
+          "formatted_final_price": "$14.99",
+          "user_can_purchase_as_gift": true,
+          "hide_discount_pct_for_compliance": false,
+          "included_game_count": 1,
+          "must_purchase_as_set": false,
+          "package_group": "default",
+          "price_cannot_be_displayed_as_discount": false
+        }
+      },
+      {
+        "item_type": 0,
+        "id": 1329410,
+        "success": 15,
+        "visible": false,
+        "unvailable_for_country_restriction": true,
+        "name": "\u96c0\u9b42\u9ebb\u5c07(MahjongSoul)",
+        "store_url_path": "app/1329410/\u96c0\u9b42\u9ebb\u5c07MahjongSoul",
+        "store_url_slug": "\u96c0\u9b42\u9ebb\u5c07MahjongSoul",
+        "appid": 1329410
+      },
+      {
+        "item_type": 0,
+        "id": 999999999,
+        "success": 15,
+        "visible": false,
+        "name": "",
+        "store_url_path": "app/0/",
+        "store_url_slug": "",
+        "appid": 0
+      }
+    ]
+  }
+}
