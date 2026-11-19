@@ -41,6 +41,10 @@ events, posts, likes and reposts per second, one point per window) and "Top post
 with the most likes and reposts in the time range, with a link to bsky.app and the `about` column: the
 excerpt of the post text; it is empty for posts recorded before excerpts existed).
 
+![Bluesky radar, last 24 hours, 2026-11-19](docs/bluesky-radar.png)
+
+The gap from about 17:00 to 04:00 UTC is the host switched off for the night.
+
 Steam variables: `game` picks the games for the two graphs (the latest number 1 is the default), `period`
 (1, 7 or 30 days) is how far back the movements table compares. Games are labelled by `appid`, not by
 name; in the table an appid links to the game page in Steam. The movements table is empty until there
