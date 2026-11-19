@@ -22,6 +22,7 @@ import redis.asyncio
 
 from gamedev_trends.bus import Publisher, PublishError
 from gamedev_trends.contract import Event, Observation
+from gamedev_trends.entry import run_main
 from gamedev_trends.kafka_bus import KafkaPublisher
 from gamedev_trends.logs import setup_logging
 from gamedev_trends.ratelimit import RateLimiter, RateLimiterError, RedisTokenBucket, Sleep, acquire
@@ -510,4 +511,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_main(__spec__)

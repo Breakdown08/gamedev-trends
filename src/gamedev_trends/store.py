@@ -18,6 +18,7 @@ import httpx
 
 from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC, Subscriber
 from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
+from gamedev_trends.entry import run_main
 from gamedev_trends.logs import setup_logging
 
 logger: logging.Logger = logging.getLogger("gamedev_trends.store")
@@ -450,4 +451,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_main(__spec__)

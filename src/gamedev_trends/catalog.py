@@ -20,6 +20,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from gamedev_trends.clickhouse import DATABASE_PATTERN, ClickHouseClient
+from gamedev_trends.entry import run_main
 from gamedev_trends.logs import setup_logging
 from gamedev_trends.ratelimit import Sleep
 from gamedev_trends.steam import USER_AGENT
@@ -581,4 +582,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    run_main(__spec__)

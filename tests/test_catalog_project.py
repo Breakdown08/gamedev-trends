@@ -115,9 +115,13 @@ def test_31_integration_tests_collected_only_on_request() -> None:
     assert "test_catalog_integration.py::" not in collect()
 
 
-# The only allowed change: the shared basicConfig moved to gamedev_trends.logs.setup_logging.
-LOGGING_REFACTOR: frozenset[str] = frozenset(
+# The only allowed changes: the shared basicConfig moved to gamedev_trends.logs.setup_logging, and
+# `__main__` delegates to the imported copy of the module (gamedev_trends.entry.run_main).
+ALLOWED_CHANGES: frozenset[str] = frozenset(
     {
+        "-    sys.exit(main())",
+        "+    run_main(__spec__)",
+        "+from gamedev_trends.entry import run_main",
         "-    logging.basicConfig(",
         "-        level=logging.INFO,",
         "-        stream=sys.stderr,",
@@ -138,4 +142,4 @@ def test_32_existing_modules_untouched() -> None:
         for line in git("diff", "-U0", BASE_COMMIT, "--", *files).splitlines()
         if line[:1] in "+-" and not line.startswith(("+++", "---"))
     ]
-    assert [line for line in changed if line not in LOGGING_REFACTOR] == []
+    assert [line for line in changed if line not in ALLOWED_CHANGES] == []
