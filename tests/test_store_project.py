@@ -9,7 +9,8 @@ BASE_COMMIT: str = "030389a"
 
 
 def test_02_pyproject_unchanged_since_steam_task() -> None:
-    """Since 030389a two lines were added (the WebSocket client, then the MongoDB driver) and none removed."""
+    """Since 030389a two dependency lines were added (the WebSocket client, then the MongoDB driver)
+    and the integration marker text was widened to the whole stack (2026-11-19)."""
     diff: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "diff", BASE_COMMIT, "--", "pyproject.toml"], cwd=ROOT, capture_output=True, text=True
     )
@@ -17,8 +18,17 @@ def test_02_pyproject_unchanged_since_steam_task() -> None:
     lines: list[str] = diff.stdout.splitlines()
     removed: list[str] = [x for x in lines if x.startswith("-") and not x.startswith("---")]
     added: list[str] = [x for x in lines if x.startswith("+") and not x.startswith("+++")]
-    assert removed == []
-    assert added == ['+    "websockets>=17.4,<18",', '+    "pymongo>=4.20,<5",']
+    assert removed == [
+        '-markers = ["integration: needs the docker compose stack '
+        '(Kafka on localhost:9092, Redis on localhost:6379)"]'
+    ]
+    assert added == [
+        '+    "websockets>=17.4,<18",',
+        '+    "pymongo>=4.20,<5",',
+        '+markers = ["integration: needs the docker compose stack '
+        "(Kafka on localhost:9092, Redis on localhost:6379, "
+        'ClickHouse on localhost:8123, MongoDB on localhost:27017, Grafana on localhost:3000)"]',
+    ]
 
 
 def test_03_store_integration_tests_collected_only_on_request() -> None:

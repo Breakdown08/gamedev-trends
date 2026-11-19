@@ -12,7 +12,8 @@ cp .env.example .env
 docker compose up -d --wait   # Kafka, ClickHouse, Redis, MongoDB, Grafana
 uv run pytest                 # unit tests, no Docker needed
 uv run pytest -m integration  # needs the compose stack (Kafka on localhost:9092, Redis on localhost:6379,
-                              # ClickHouse on localhost:8123, MongoDB on localhost:27017)
+                              # ClickHouse on localhost:8123, MongoDB on localhost:27017,
+                              # Grafana on localhost:3000)
 docker compose down
 ```
 

@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient
+from confluent_kafka.admin._metadata import ClusterMetadata
 
 from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC, partition_key
 from gamedev_trends.contract import Erasure, Event, Observation
@@ -17,6 +19,20 @@ pytestmark: pytest.MarkDecorator = pytest.mark.integration
 
 BOOTSTRAP: str = "localhost:9092"
 T10: datetime = datetime(2026, 11, 12, 10, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def topics_exist() -> None:
+    """Fail fast when kafka-init has not created the topics yet.
+
+    A consumer subscribed to a topic that does not exist yet does not see it until the next metadata
+    refresh, while the producer waits for the topic and delivers. Started during kafka-init, test 34
+    then read 10 events of 11: the Erasure on the topic created second was never polled.
+    """
+    metadata: ClusterMetadata = AdminClient({"bootstrap.servers": BOOTSTRAP}).list_topics(timeout=10)
+    missing: list[str] = sorted({OBSERVATIONS_TOPIC, ERASURES_TOPIC} - set(metadata.topics))
+    if missing:
+        pytest.fail(f"topics missing: {', '.join(missing)}; run `docker compose up -d --wait kafka-init`")
 
 
 def make_obs(entity_id: str, i: int) -> Observation:

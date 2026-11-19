@@ -28,7 +28,8 @@ def test_02_dependencies() -> None:
 def test_03_marker_text_and_redis_integration_tests_collected() -> None:
     data: dict[str, Any] = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert (
-        "integration: needs the docker compose stack (Kafka on localhost:9092, Redis on localhost:6379)"
+        "integration: needs the docker compose stack (Kafka on localhost:9092, Redis on localhost:6379, "
+        "ClickHouse on localhost:8123, MongoDB on localhost:27017, Grafana on localhost:3000)"
         in data["tool"]["pytest"]["ini_options"]["markers"]
     )
     only: subprocess.CompletedProcess[str] = subprocess.run(

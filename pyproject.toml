@@ -30,7 +30,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = ["integration: needs the docker compose stack (Kafka on localhost:9092, Redis on localhost:6379)"]
+markers = ["integration: needs the docker compose stack (Kafka on localhost:9092, Redis on localhost:6379, ClickHouse on localhost:8123, MongoDB on localhost:27017, Grafana on localhost:3000)"]
 addopts = "-m 'not integration'"
 
 [tool.ruff]
