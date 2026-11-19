@@ -230,6 +230,11 @@ day, about 200 MB a year.
   with permessage-deflate (what `websockets` negotiates by default) 0.26–0.58 of real time, mean 0.39;
   with `compress=true` (zstd with the Jetstream dictionary) 0.34–0.65, mean 0.42. Without any compression
   (07:45 UTC, two connections) 0.13–0.15. zstd is within the spread of deflate, so the collector stays on deflate.
+- 2026-11-19, excerpts after three days (since 2026-11-16 09:39 UTC): 2 894 rows in `radar.excerpts`,
+  669 / 746 / 990 per full day (16–18 November, the host is off at night), 404 KiB compressed and 721 KiB
+  uncompressed on disk (`system.parts`), 127 characters (135 bytes) per excerpt on average, 140 at most.
+  All 1 315 posts with observations in the last 24 hours have an excerpt. 34 erasures arrived after
+  excerpts appeared; none of those URIs is left in `radar.excerpts` or `radar.observations`.
 
 ## Storage
 
