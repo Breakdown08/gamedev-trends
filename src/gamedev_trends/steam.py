@@ -23,6 +23,7 @@ import redis.asyncio
 from gamedev_trends.bus import Publisher, PublishError
 from gamedev_trends.contract import Event, Observation
 from gamedev_trends.kafka_bus import KafkaPublisher
+from gamedev_trends.logs import setup_logging
 from gamedev_trends.ratelimit import RateLimiter, RateLimiterError, RedisTokenBucket, Sleep, acquire
 
 type Now = Callable[[], datetime]
@@ -504,11 +505,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging()
     return asyncio.run(_run(config, bool(args.once)))
 
 

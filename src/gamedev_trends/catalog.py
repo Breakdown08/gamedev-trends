@@ -20,6 +20,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from gamedev_trends.clickhouse import DATABASE_PATTERN, ClickHouseClient
+from gamedev_trends.logs import setup_logging
 from gamedev_trends.ratelimit import Sleep
 from gamedev_trends.steam import USER_AGENT
 from gamedev_trends.store import format_datetime
@@ -571,11 +572,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging()
     try:
         return asyncio.run(_run(args, config))
     except Exception:

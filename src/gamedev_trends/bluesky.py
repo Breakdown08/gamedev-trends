@@ -41,6 +41,7 @@ from gamedev_trends.jetstream import (
     us_to_datetime,
     websocket_connect,
 )
+from gamedev_trends.logs import setup_logging
 from gamedev_trends.store import Sleep
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -879,11 +880,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging()
     return asyncio.run(_run(config, args.duration))
 
 

@@ -18,6 +18,7 @@ import httpx
 
 from gamedev_trends.bus import ERASURES_TOPIC, OBSERVATIONS_TOPIC, Subscriber
 from gamedev_trends.contract import Erasure, Event, Excerpt, Observation
+from gamedev_trends.logs import setup_logging
 
 logger: logging.Logger = logging.getLogger("gamedev_trends.store")
 
@@ -444,11 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    logging.basicConfig(
-        level=logging.INFO,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    setup_logging()
     return asyncio.run(_run(config))
 
 
