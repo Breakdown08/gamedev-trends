@@ -17,6 +17,9 @@ uv run pytest -m integration  # needs the compose stack (Kafka on localhost:9092
 docker compose down
 ```
 
+The integration tests use the stack's own `radar` database: rows with entity ids `it-<uuid>` stay there
+after a run. Run them against a stack whose data you can throw away.
+
 ## Dashboards
 
 Grafana runs over ClickHouse and is configured entirely by files in `grafana/`. Open
